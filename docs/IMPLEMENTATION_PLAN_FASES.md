@@ -15,6 +15,11 @@ Principios rectores
 - Local-first: persistencia en IndexedDB vía rexie
 - Clean code: clippy sin warnings, tests y snapshots en core crítico
 
+Progreso reciente (estado a 2025-08-14)
+- Fallback automático a Canvas2D cuando WebGPU no está disponible o falla la inicialización (detección previa de `navigator.gpu`), sin ruido en consola.
+- Controles de UI para conmutar Canvas2D/WebGPU en caliente. El botón WebGPU se deshabilita si no hay soporte (tooltip).
+- Indicador en la UI del renderer activo y del DPR, reactivo a cambios de renderer y de `resize`.
+
 Pila tecnológica
 - UI: Leptos (CSR)
 - ECS: bevy_ecs (standalone)
@@ -44,7 +49,7 @@ Objetivo: base sólida de edición y render con persistencia local.
 - Sistemas: creación/selección/manipulación, freehand con simplificación
 
 4) Render vectorial (app-web + adapter Renderer)
-- Inicialización wgpu (fallback WebGL2 mediante wgpu)
+- Inicialización wgpu (fallback WebGL2 mediante wgpu) y fallback a Canvas2D cuando WebGPU no esté disponible (implementado)
 - Teselación con lyon, batch y estados; cámara con pan/zoom
 - Texto con glyphon; caché de fuentes; measure_text vía puerto
 
@@ -52,6 +57,7 @@ Objetivo: base sólida de edición y render con persistencia local.
 - Shell: toolbar, panel propiedades, canvas host
 - Señales de estado (herramienta/color/estilo) y puente a ECS
 - Manejo de eventos de puntero/teclado → eventos ECS
+- Controles para conmutar Canvas2D/WebGPU y mostrar indicador `Renderer: <Nombre> | DPR: <valor>` (implementado)
 
 6) Import/Export
 - Importar SVG básico (rect/circle/line/path)
@@ -69,7 +75,7 @@ Objetivo: base sólida de edición y render con persistencia local.
 
 Timeline sugerido (10 semanas)
 - S1-2: workspace, puertos core, UI mínima, loop RAF
-- S3-4: render wgpu+lyon, texto básico, pan/zoom
+- S3-4: render wgpu+lyon, texto básico, pan/zoom; fallback Canvas2D cuando WebGPU no esté disponible; controles de conmutación e indicador renderer/DPR
 - S5-6: selección/crear/mover/escala/rotar, pencil
 - S7: import/export SVG/PNG
 - S8: IndexedDB + JSON versionado + autosave
@@ -82,9 +88,10 @@ Criterios de aceptación (F1)
 - Clippy sin warnings; >80% cobertura en core crítico
 - Smoke test UX: crear/editar formas y texto en <2 min por usuario nuevo
 - Estabilidad: 0 crashes en 30 min de pruebas
+- UX de compatibilidad: en navegadores sin WebGPU, la app debe iniciar sin errores, con Canvas2D activo, botón WebGPU deshabilitado y indicador mostrando correctamente el backend y el DPR.
 
 Riesgos y mitigaciones (F1)
-- WebGPU no disponible → fallback WebGL2 (wgpu)
+- WebGPU no disponible → fallback Canvas2D (implementado) y, a futuro, WebGL2 (wgpu). Señalización clara en UI y controles de conmutación.
 - Texto en WASM → validar glyphon/swash temprano; caché de fonts
 - Tamaño WASM → LTO, opt-level=z, feature flags, auditoría de dependencias
 

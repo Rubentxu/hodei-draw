@@ -8,6 +8,11 @@ Resumen
 - Principios: arquitectura hexagonal, clean code, performance 60 FPS, local-first.
 - Pila: Rust+WASM, Leptos, bevy_ecs, wgpu+lyon+glyphon, avian/bevy_rapier, matchbox+ggrs, rexie/IndexedDB.
 
+Progreso reciente (estado a 2025-08-14)
+- Fallback automático a Canvas2D cuando WebGPU no está disponible o falla la inicialización, con detección previa de `navigator.gpu` y sin ruido en consola.
+- Controles de UI para conmutar Canvas2D/WebGPU en caliente, con botón WebGPU deshabilitado si no hay soporte (tooltip informativo).
+- Indicador en la UI del renderer activo y del Device Pixel Ratio (DPR), reactivo ante cambios de renderer y de ventana/DPR.
+
 Fases y Objetivos
 1) Fase 1 — El Mejor Excalidraw (MVP)
    - Meta: base sólida de edición y render con persistencia local.
@@ -45,7 +50,7 @@ Fase 3 (Plataforma)
 
 Cronograma sugerido (primeros 3-4 meses)
 - Semana 1-2: H1.1, base workspace, puertos del dominio, UI mínima Leptos
-- Semana 3-4: H1.2 render básico, texto, pipeline de build (Trunk), RAF loop, fallback Canvas2D cuando WebGPU no está disponible
+- Semana 3-4: H1.2 render básico, texto, pipeline de build (Trunk), RAF loop, fallback Canvas2D cuando WebGPU no está disponible (completado) y controles de conmutación + indicador de renderer/DPR (completado)
 - Semana 5-6: H1.3 interacciones y sistemas ECS para edición; selección/handles
 - Semana 7: H1.4 import/export; snapshots de serialización
 - Semana 8: H1.5 IndexedDB y migraciones de esquema
@@ -64,7 +69,7 @@ KPIs y Criterios de Aceptación
 - Estabilidad: 0 crashes en smoke tests de 30 min.
 
 Riesgos y Mitigaciones
-- Falta de WebGPU: fallback inmediato a Canvas2D (implementado) y, a futuro, WebGL2 vía wgpu; degradación controlada. Se incluyeron controles en la UI para forzar Canvas2D/WebGPU y telemetría mínima en consola.
+- Falta de WebGPU: fallback inmediato a Canvas2D (implementado) y, a futuro, WebGL2 vía wgpu; degradación controlada. Controles en la UI para conmutar Canvas2D/WebGPU y señalización clara del estado; telemetría mínima en consola.
 - Texto en WASM: validar glyphon/swash temprano; cache de fuentes.
 - Física/Determinismo: fixed timestep, auditoría de FP; fallback a rapier si avian bloquea.
 - P2P: escalado limitado; para equipos grandes, plan futuro servidor relay/estado.
