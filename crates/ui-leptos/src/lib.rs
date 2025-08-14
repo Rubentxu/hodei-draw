@@ -63,7 +63,7 @@ fn resize_canvas(canvas: &HtmlCanvasElement) {
 #[component]
 pub fn App() -> impl IntoView {
     #[derive(Clone, Copy, PartialEq, Eq)]
-    enum Tool { Select, Rect }
+    enum Tool { Select, Rect, Ellipse, Line }
 
     // Umbral mínimo de arrastre para considerar creación (evitar click simple -> rect diminuto)
     const DRAG_THRESHOLD: f32 = 4.0;
@@ -126,9 +126,9 @@ pub fn App() -> impl IntoView {
                 let y = sy.min(ey);
                 let w = dx.max(1.0);
                 let h = dy.max(1.0);
-                // Llamar a ecs_create_rect(x,y,w,h)
-                if tool.get_untracked() == Tool::Rect {
-                    {
+                // Llamar a función de creación según la herramienta activa
+                match tool.get_untracked() {
+                    Tool::Rect => {
                         let win = window();
                         let global: JsValue = win.into();
                         if let Ok(func_val) = Reflect::get(&global, &JsValue::from_str("ecs_create_rect")) {
@@ -140,12 +140,47 @@ pub fn App() -> impl IntoView {
                                 args.push(&JsValue::from_f64(w as f64));
                                 args.push(&JsValue::from_f64(h as f64));
                                 let _ = func.apply(&JsValue::NULL, &args);
-                            } else {
-                                console::warn_1(&"UI: ecs_create_rect no es una función".into());
                             }
-                        } else {
-                            console::warn_1(&"UI: window.ecs_create_rect no encontrado".into());
                         }
+                    }
+                    Tool::Ellipse => {
+                        let rx = w / 2.0;
+                        let ry = h / 2.0;
+                        let cx = x + rx; // Centro de la elipse
+                        let cy = y + ry;
+                        let win = window();
+                        let global: JsValue = win.into();
+                        if let Ok(func_val) = Reflect::get(&global, &JsValue::from_str("ecs_create_ellipse")) {
+                            if let Ok(func) = func_val.dyn_into::<Function>() {
+                                console::log_1(&format!("UI: calling ecs_create_ellipse({}, {}, {}, {})", cx, cy, rx, ry).into());
+                                let args = js_sys::Array::new();
+                                args.push(&JsValue::from_f64(cx as f64));
+                                args.push(&JsValue::from_f64(cy as f64));
+                                args.push(&JsValue::from_f64(rx as f64));
+                                args.push(&JsValue::from_f64(ry as f64));
+                                let _ = func.apply(&JsValue::NULL, &args);
+                            }
+                        }
+                    }
+                    Tool::Line => {
+                        let win = window();
+                        let global: JsValue = win.into();
+                        if let Ok(func_val) = Reflect::get(&global, &JsValue::from_str("ecs_create_line")) {
+                            if let Ok(func) = func_val.dyn_into::<Function>() {
+                                let x2 = x + w;
+                                let y2 = y + h;
+                                console::log_1(&format!("UI: calling ecs_create_line({}, {}, {}, {})", x, y, x2, y2).into());
+                                let args = js_sys::Array::new();
+                                args.push(&JsValue::from_f64(x as f64));
+                                args.push(&JsValue::from_f64(y as f64));
+                                args.push(&JsValue::from_f64(x2 as f64));
+                                args.push(&JsValue::from_f64(y2 as f64));
+                                let _ = func.apply(&JsValue::NULL, &args);
+                            }
+                        }
+                    }
+                    Tool::Select => {
+                        // Para herramienta de selección, no crear nada
                     }
                 }
             } // Si no supera umbral, tratamos como click: no se crea rectángulo
@@ -224,19 +259,60 @@ pub fn App() -> impl IntoView {
                                 let y = sy.min(ey);
                                 let w = dx.max(1.0);
                                 let h = dy.max(1.0);
-                                if tool_for_doc.get_untracked() == Tool::Rect {
-                                    let win = window();
-                                    let global: JsValue = win.into();
-                                    if let Ok(func_val) = Reflect::get(&global, &JsValue::from_str("ecs_create_rect")) {
-                                        if let Ok(func) = func_val.dyn_into::<Function>() {
-                                            console::log_1(&format!("DOC: ecs_create_rect({}, {}, {}, {})", x, y, w, h).into());
-                                            let args = js_sys::Array::new();
-                                            args.push(&JsValue::from_f64(x as f64));
-                                            args.push(&JsValue::from_f64(y as f64));
-                                            args.push(&JsValue::from_f64(w as f64));
-                                            args.push(&JsValue::from_f64(h as f64));
-                                            let _ = func.apply(&JsValue::NULL, &args);
+                                match tool_for_doc.get_untracked() {
+                                    Tool::Rect => {
+                                        let win = window();
+                                        let global: JsValue = win.into();
+                                        if let Ok(func_val) = Reflect::get(&global, &JsValue::from_str("ecs_create_rect")) {
+                                            if let Ok(func) = func_val.dyn_into::<Function>() {
+                                                console::log_1(&format!("DOC: ecs_create_rect({}, {}, {}, {})", x, y, w, h).into());
+                                                let args = js_sys::Array::new();
+                                                args.push(&JsValue::from_f64(x as f64));
+                                                args.push(&JsValue::from_f64(y as f64));
+                                                args.push(&JsValue::from_f64(w as f64));
+                                                args.push(&JsValue::from_f64(h as f64));
+                                                let _ = func.apply(&JsValue::NULL, &args);
+                                            }
                                         }
+                                    }
+                                    Tool::Ellipse => {
+                                        let rx = w / 2.0;
+                                        let ry = h / 2.0;
+                                        let cx = x + rx;
+                                        let cy = y + ry;
+                                        let win = window();
+                                        let global: JsValue = win.into();
+                                        if let Ok(func_val) = Reflect::get(&global, &JsValue::from_str("ecs_create_ellipse")) {
+                                            if let Ok(func) = func_val.dyn_into::<Function>() {
+                                                console::log_1(&format!("DOC: ecs_create_ellipse({}, {}, {}, {})", cx, cy, rx, ry).into());
+                                                let args = js_sys::Array::new();
+                                                args.push(&JsValue::from_f64(cx as f64));
+                                                args.push(&JsValue::from_f64(cy as f64));
+                                                args.push(&JsValue::from_f64(rx as f64));
+                                                args.push(&JsValue::from_f64(ry as f64));
+                                                let _ = func.apply(&JsValue::NULL, &args);
+                                            }
+                                        }
+                                    }
+                                    Tool::Line => {
+                                        let win = window();
+                                        let global: JsValue = win.into();
+                                        if let Ok(func_val) = Reflect::get(&global, &JsValue::from_str("ecs_create_line")) {
+                                            if let Ok(func) = func_val.dyn_into::<Function>() {
+                                                let x2 = x + w;
+                                                let y2 = y + h;
+                                                console::log_1(&format!("DOC: ecs_create_line({}, {}, {}, {})", x, y, x2, y2).into());
+                                                let args = js_sys::Array::new();
+                                                args.push(&JsValue::from_f64(x as f64));
+                                                args.push(&JsValue::from_f64(y as f64));
+                                                args.push(&JsValue::from_f64(x2 as f64));
+                                                args.push(&JsValue::from_f64(y2 as f64));
+                                                let _ = func.apply(&JsValue::NULL, &args);
+                                            }
+                                        }
+                                    }
+                                    Tool::Select => {
+                                        // Para herramienta de selección, no crear nada
                                     }
                                 }
                             }
@@ -288,8 +364,14 @@ pub fn App() -> impl IntoView {
                         on:click=move |_| set_tool.set(Tool::Rect)
                         style=move || if tool.get() == Tool::Rect { "background:#e5e7eb" } else { "" }
                     >Rectángulo</button>
-                    <button>Elipse</button>
-                    <button>Línea</button>
+                    <button
+                        on:click=move |_| set_tool.set(Tool::Ellipse)
+                        style=move || if tool.get() == Tool::Ellipse { "background:#e5e7eb" } else { "" }
+                    >Elipse</button>
+                    <button
+                        on:click=move |_| set_tool.set(Tool::Line)
+                        style=move || if tool.get() == Tool::Line { "background:#e5e7eb" } else { "" }
+                    >Línea</button>
                     <button>Lápiz</button>
                 </div>
             </header>

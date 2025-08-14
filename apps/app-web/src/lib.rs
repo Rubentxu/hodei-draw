@@ -226,6 +226,28 @@ pub fn ecs_create_rect(x: f32, y: f32, w: f32, h: f32) {
 }
 
 #[cfg(target_arch = "wasm32")]
+#[wasm_bindgen(js_namespace = window)]
+pub fn ecs_create_ellipse(x: f32, y: f32, rx: f32, ry: f32) {
+    console::log_1(&format!("ecs_create_ellipse(x={}, y={}, rx={}, ry={})", x, y, rx, ry).into());
+    ECS.with(|ecs| {
+        if let Some(app) = &mut *ecs.borrow_mut() {
+            app.send_create_ellipse(x, y, rx, ry);
+        }
+    });
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen(js_namespace = window)]
+pub fn ecs_create_line(x1: f32, y1: f32, x2: f32, y2: f32) {
+    console::log_1(&format!("ecs_create_line(x1={}, y1={}, x2={}, y2={})", x1, y1, x2, y2).into());
+    ECS.with(|ecs| {
+        if let Some(app) = &mut *ecs.borrow_mut() {
+            app.send_create_line(x1, y1, x2, y2);
+        }
+    });
+}
+
+#[cfg(target_arch = "wasm32")]
 #[derive(Serialize)]
 struct RectDto { x: f32, y: f32, w: f32, h: f32 }
 
@@ -442,6 +464,74 @@ fn register_window_functions() -> Result<(), JsValue> {
     Reflect::set(&global, &JsValue::from_str("ecs_create_rect"), f_rect.as_ref())?;
     if let Some(win) = &win_opt { let _ = Reflect::set(win, &JsValue::from_str("ecs_create_rect"), f_rect.as_ref()); }
     f_rect.forget();
+
+    // ecs_create_ellipse(x, y, rx, ry)
+    let f_ellipse = Closure::wrap(Box::new(move |x: f32, y: f32, rx: f32, ry: f32| {
+        console::log_1(&format!("[global] ecs_create_ellipse({}, {}, {}, {})", x, y, rx, ry).into());
+        ECS.with(|ecs| {
+            match ecs.try_borrow_mut() {
+                Ok(mut ecs_mut) => {
+                    if let Some(app) = &mut *ecs_mut {
+                        app.send_create_ellipse(x, y, rx, ry);
+                    }
+                }
+                Err(_) => {
+                    console::warn_1(&"ECS is busy (create_ellipse); retrying soon".into());
+                    if let Some(win) = window() {
+                        let cb = Closure::once_into_js(move || {
+                            ECS.with(|ecs| {
+                                if let Ok(mut ecs_mut) = ecs.try_borrow_mut() {
+                                    if let Some(app) = &mut *ecs_mut {
+                                        app.send_create_ellipse(x, y, rx, ry);
+                                    }
+                                }
+                            });
+                        });
+                        let _ = win.set_timeout_with_callback_and_timeout_and_arguments_0(
+                            cb.as_ref().unchecked_ref(), 0,
+                        );
+                    }
+                }
+            }
+        });
+    }) as Box<dyn FnMut(f32, f32, f32, f32)>);
+    Reflect::set(&global, &JsValue::from_str("ecs_create_ellipse"), f_ellipse.as_ref())?;
+    if let Some(win) = &win_opt { let _ = Reflect::set(win, &JsValue::from_str("ecs_create_ellipse"), f_ellipse.as_ref()); }
+    f_ellipse.forget();
+
+    // ecs_create_line(x1, y1, x2, y2)
+    let f_line = Closure::wrap(Box::new(move |x1: f32, y1: f32, x2: f32, y2: f32| {
+        console::log_1(&format!("[global] ecs_create_line({}, {}, {}, {})", x1, y1, x2, y2).into());
+        ECS.with(|ecs| {
+            match ecs.try_borrow_mut() {
+                Ok(mut ecs_mut) => {
+                    if let Some(app) = &mut *ecs_mut {
+                        app.send_create_line(x1, y1, x2, y2);
+                    }
+                }
+                Err(_) => {
+                    console::warn_1(&"ECS is busy (create_line); retrying soon".into());
+                    if let Some(win) = window() {
+                        let cb = Closure::once_into_js(move || {
+                            ECS.with(|ecs| {
+                                if let Ok(mut ecs_mut) = ecs.try_borrow_mut() {
+                                    if let Some(app) = &mut *ecs_mut {
+                                        app.send_create_line(x1, y1, x2, y2);
+                                    }
+                                }
+                            });
+                        });
+                        let _ = win.set_timeout_with_callback_and_timeout_and_arguments_0(
+                            cb.as_ref().unchecked_ref(), 0,
+                        );
+                    }
+                }
+            }
+        });
+    }) as Box<dyn FnMut(f32, f32, f32, f32)>);
+    Reflect::set(&global, &JsValue::from_str("ecs_create_line"), f_line.as_ref())?;
+    if let Some(win) = &win_opt { let _ = Reflect::set(win, &JsValue::from_str("ecs_create_line"), f_line.as_ref()); }
+    f_line.forget();
 
     // get_document_json() -> String
     let f_get = Closure::wrap(Box::new(move || -> JsValue {

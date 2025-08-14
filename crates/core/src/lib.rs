@@ -8,13 +8,25 @@ pub mod model {
     #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
     pub struct EntityId(pub u64);
 
-    #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
+    #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
     pub struct Transform {
         pub x: f32,
         pub y: f32,
         pub rotation: f32,
         pub scale_x: f32,
         pub scale_y: f32,
+    }
+
+    impl Default for Transform {
+        fn default() -> Self {
+            Self {
+                x: 0.0,
+                y: 0.0,
+                rotation: 0.0,
+                scale_x: 1.0,  // ¡Esto es crítico! Debe ser 1.0, no 0.0
+                scale_y: 1.0,  // ¡Esto es crítico! Debe ser 1.0, no 0.0
+            }
+        }
     }
 
     #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
@@ -36,13 +48,11 @@ pub mod model {
         pub dash_offset: f32,
     }
 
-    #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-    pub enum StrokeCap { Butt, Square, Round }
-    impl Default for StrokeCap { fn default() -> Self { StrokeCap::Butt } }
+    #[derive(Default, Clone, Copy, Debug, Serialize, Deserialize)]
+    pub enum StrokeCap { #[default] Butt, Square, Round }
 
-    #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-    pub enum StrokeJoin { Miter, Bevel, Round }
-    impl Default for StrokeJoin { fn default() -> Self { StrokeJoin::Miter } }
+    #[derive(Default, Clone, Copy, Debug, Serialize, Deserialize)]
+    pub enum StrokeJoin { #[default] Miter, Bevel, Round }
 
     #[derive(Clone, Debug, Serialize, Deserialize)]
     pub enum Shape {

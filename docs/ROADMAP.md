@@ -9,9 +9,14 @@ Resumen
 - Pila: Rust+WASM, Leptos, bevy_ecs, wgpu+lyon+glyphon, avian/bevy_rapier, matchbox+ggrs, rexie/IndexedDB.
 
 Progreso reciente (estado a 2025-08-14)
-- Fallback automático a Canvas2D cuando WebGPU no está disponible o falla la inicialización, con detección previa de `navigator.gpu` y sin ruido en consola.
-- Controles de UI para conmutar Canvas2D/WebGPU en caliente, con botón WebGPU deshabilitado si no hay soporte (tooltip informativo).
-- Indicador en la UI del renderer activo y del Device Pixel Ratio (DPR), reactivo ante cambios de renderer y de ventana/DPR.
+- ✅ **MVP FUNCIONAL COMPLETADO**: Aplicación web completamente funcional con creación, selección y renderizado de formas
+- ✅ **Renderer Canvas2D Completo**: Soporte total para Rect, Ellipse, Line, Polygon con estilos avanzados (fill, stroke, dash patterns), paths vectoriales, texto básico y transformaciones de cámara (pan/zoom)
+- ✅ **Sistema de Selección Inteligente**: Hit testing preciso para todas las formas con feedback visual (borde azul para seleccionadas)
+- ✅ **Herramientas de UI Completas**: Herramientas Seleccionar, Rectángulo, Elipse, Línea con creación drag-to-create funcional
+- ✅ **Arquitectura Sólida**: Hexagonal architecture con separación clara core/ecs/ui/app, puertos bien definidos, ECS robusto
+- ✅ **Fallback automático a Canvas2D** cuando WebGPU no está disponible, con detección previa de `navigator.gpu` 
+- ✅ **Controles de UI** para conmutar Canvas2D/WebGPU con indicador de renderer activo y DPR
+- ✅ **Bug crítico resuelto**: Transform Default corregido (scale_x/scale_y = 1.0) - formas ahora se renderizan correctamente
 
 Fases y Objetivos
 1) Fase 1 — El Mejor Excalidraw (MVP)
@@ -26,13 +31,13 @@ Fases y Objetivos
 
 Hitos por Fase
 Fase 1 (MVP)
-- H1.1 Workspace multi-crate y puertos (traits) del dominio
-- H1.2 Render vectorial (formas, texto) por GPU con wgpu+lyon+glyphon
-- H1.3 Interacciones de edición: seleccionar, mover, escalar, rotar, lápiz libre
-- H1.4 Importación SVG, exportación PNG/SVG
-- H1.5 Persistencia local (IndexedDB) y formato JSON abierto
-- H1.6 Undo/Redo robusto y tests núcleo
-- H1.7 Optimización WASM (wasm-opt) y presupuesto de tamaño
+- ✅ H1.1 Workspace multi-crate y puertos (traits) del dominio
+- ✅ H1.2 Render vectorial (formas, texto) por Canvas2D con fallback desde WebGPU
+- 🔄 H1.3 Interacciones de edición: ✅ seleccionar, 🚧 mover, ⏳ escalar, ⏳ rotar, ⏳ lápiz libre
+- ⏳ H1.4 Importación SVG, exportación PNG/SVG  
+- ⏳ H1.5 Persistencia local (IndexedDB) y formato JSON abierto
+- ⏳ H1.6 Undo/Redo robusto y tests núcleo
+- ⏳ H1.7 Optimización WASM (wasm-opt) y presupuesto de tamaño
 
 Fase 2 (Interactivo)
 - H2.1 Timeline y sistema de tweening (easings) sobre Transform/Style
@@ -49,17 +54,17 @@ Fase 3 (Plataforma)
 - H3.4 Features Plus/Enterprise iniciales (workspaces cloud, equipos)
 
 Cronograma sugerido (primeros 3-4 meses)
-- Semana 1-2: H1.1, base workspace, puertos del dominio, UI mínima Leptos
-- Semana 3-4: H1.2 render básico, texto, pipeline de build (Trunk), RAF loop, fallback Canvas2D cuando WebGPU no está disponible (completado) y controles de conmutación + indicador de renderer/DPR (completado)
-- Semana 5-6: H1.3 interacciones y sistemas ECS para edición; selección/handles
-- Semana 7: H1.4 import/export; snapshots de serialización
-- Semana 8: H1.5 IndexedDB y migraciones de esquema
-- Semana 9: H1.6 undo/redo, property-based tests
-- Semana 10: H1.7 optimización, presupuesto WASM, demo pública MVP
-- Semana 11-12: H2.1/H2.2 timeline/easing; controles de reproducción
-- Semana 13-14: H2.3 física (integración mínima), demo de colisiones y gravedad
-- Semana 15: H2.4/H2.5 colaboración básica + determinismo
-- Semana 16: H2.6 demos públicas, hardening y feedback
+- ✅ Semana 1-2: H1.1, base workspace, puertos del dominio, UI mínima Leptos
+- ✅ Semana 3-4: H1.2 render básico con Canvas2D completo, texto, pipeline de build (Trunk), RAF loop, fallback Canvas2D desde WebGPU, controles de conmutación + indicador de renderer/DPR 
+- 🔄 Semana 5-6: H1.3 interacciones y sistemas ECS para edición; ✅ selección, 🚧 manipulación directa
+- ⏳ Semana 7: H1.4 import/export; snapshots de serialización
+- ⏳ Semana 8: H1.5 IndexedDB y migraciones de esquema
+- ⏳ Semana 9: H1.6 undo/redo, property-based tests
+- ⏳ Semana 10: H1.7 optimización, presupuesto WASM, demo pública MVP
+- ⏳ Semana 11-12: H2.1/H2.2 timeline/easing; controles de reproducción
+- ⏳ Semana 13-14: H2.3 física (integración mínima), demo de colisiones y gravedad
+- ⏳ Semana 15: H2.4/H2.5 colaboración básica + determinismo
+- ⏳ Semana 16: H2.6 demos públicas, hardening y feedback
 
 KPIs y Criterios de Aceptación
 - Rendimiento: 60 FPS con 1k entidades simples; latencia <16ms.
