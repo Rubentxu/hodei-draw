@@ -1,0 +1,8 @@
+[workspace]
+members = [
+  "crates/core",
+  "apps/app-web",
+  "crates/ecs",
+  "crates/ui-leptos",
+]
+resolver = "2"

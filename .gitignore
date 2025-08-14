@@ -1,0 +1,41 @@
+ # Rust / Cargo
+/target/
+**/target/
+
+# Trunk (apps/app-web)
+/apps/app-web/dist/
+/apps/app-web/.trunk/
+.windsurf
+.cursor
+.claude
+
+# WASM build artifacts generated outside target/dist (safety)
+*.wasm
+*.wat
+
+# Node / tooling
+node_modules/
+
+# Logs
+*.log
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Coverage / reports
+coverage/
+*.lcov
+
+# Temp files
+.tmp/
+tmp/
+*.tmp
+
+# Env files
+.env
+.env.*

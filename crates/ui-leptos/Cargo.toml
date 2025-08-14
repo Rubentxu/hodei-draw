@@ -1,0 +1,24 @@
+[package]
+name = "momentum-ui-leptos"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "momentum_ui_leptos"
+path = "src/lib.rs"
+
+[dependencies]
+momentum-core = { path = "../core" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+leptos = { version = "0.8.6", default-features = false, features = ["csr"] }
+web-sys = { version = "0.3.77", features = [
+  "Window",
+  "HtmlCanvasElement",
+  "CanvasRenderingContext2d",
+  "Element",
+  "DomRect",
+  "DomRectReadOnly",
+  "console"
+] }
+js-sys = "0.3.77"

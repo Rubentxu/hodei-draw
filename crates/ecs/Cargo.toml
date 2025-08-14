@@ -1,0 +1,12 @@
+[package]
+name = "momentum-ecs"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "momentum_ecs"
+path = "src/lib.rs"
+
+[dependencies]
+bevy_ecs = "0.16"
+momentum-core = { path = "../core" }
