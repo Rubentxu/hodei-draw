@@ -6,7 +6,7 @@ use wasm_bindgen::prelude::*;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::JsCast;
 #[cfg(target_arch = "wasm32")]
-use web_sys::{console, window};
+use web_sys::{console, window, Event};
 #[cfg(target_arch = "wasm32")]
 use momentum_ui_leptos::mount_app;
 #[cfg(target_arch = "wasm32")]
@@ -35,6 +35,23 @@ thread_local! {
 }
 
 #[cfg(target_arch = "wasm32")]
+fn announce_renderer(name: &str) {
+    if let Some(win) = window() {
+        let _ = js_sys::Reflect::set(
+            &win,
+            &JsValue::from_str("renderer_name"),
+            &JsValue::from_str(name),
+        );
+        if let Some(doc) = win.document() {
+            // Dispatch simple Event("renderer-changed"). UI leerá window.renderer_name.
+            if let Ok(evt) = Event::new("renderer-changed") {
+                let _ = doc.dispatch_event(&evt);
+            }
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen(js_namespace = window)]
 pub fn force_canvas2d() {
     console::log_1(&"force_canvas2d() called".into());
@@ -50,6 +67,7 @@ pub fn force_canvas2d() {
                                     app.set_renderer(boxed);
                                 }
                             });
+                            announce_renderer("Canvas2D");
                             console::log_1(&"Canvas2D renderer set".into());
                         }
                         Err(e) => console::log_2(&"Canvas2D init error".into(), &JsValue::from_str(&format!("{e:?}"))),
@@ -68,8 +86,18 @@ pub fn force_webgpu() {
         if let Some(doc) = win.document() {
             if let Some(elem) = doc.get_element_by_id("main-canvas") {
                 if let Ok(canvas) = elem.dyn_into::<HtmlCanvasElement>() {
-                    spawn_local(async move {
-                        match WebGpuRenderer::new(canvas).await {
+                    // Evitar intentar WebGPU si no está disponible
+                    let has_webgpu = js_sys::Reflect::get(
+                        &win.navigator().into(),
+                        &JsValue::from_str("gpu"),
+                    )
+                    .ok()
+                    .map(|v| !v.is_undefined() && !v.is_null())
+                    .unwrap_or(false);
+
+                    if !has_webgpu {
+                        console::info_1(&"WebGPU no soportado; usando Canvas2D".into());
+                        match Canvas2DRenderer::new(canvas) {
                             Ok(renderer) => {
                                 ECS.with(|ecs| {
                                     if let Some(app) = &mut *ecs.borrow_mut() {
@@ -77,9 +105,40 @@ pub fn force_webgpu() {
                                         app.set_renderer(boxed);
                                     }
                                 });
+                                console::log_1(&"Canvas2D renderer set".into());
+                            }
+                            Err(e) => console::log_2(&"Canvas2D init error".into(), &JsValue::from_str(&format!("{e:?}"))),
+                        }
+                        return;
+                    }
+
+                    spawn_local(async move {
+                        match WebGpuRenderer::new(canvas.clone()).await {
+                            Ok(renderer) => {
+                                ECS.with(|ecs| {
+                                    if let Some(app) = &mut *ecs.borrow_mut() {
+                                        let boxed: Box<dyn RenderPort> = Box::new(renderer);
+                                        app.set_renderer(boxed);
+                                    }
+                                });
+                                announce_renderer("WebGPU");
                                 console::log_1(&"WebGPU renderer set".into());
                             }
-                            Err(e) => console::log_2(&"WebGPU init error".into(), &JsValue::from_str(&format!("{e:?}"))),
+                            Err(_e) => {
+                                // Fallback silencioso a Canvas2D
+                                if let Ok(renderer) = Canvas2DRenderer::new(canvas) {
+                                    console::log_1(&"Canvas2D fallback".into());
+                                    ECS.with(|ecs| {
+                                        if let Some(app) = &mut *ecs.borrow_mut() {
+                                            let boxed: Box<dyn RenderPort> = Box::new(renderer);
+                                            app.set_renderer(boxed);
+                                        }
+                                    });
+                                    announce_renderer("Canvas2D");
+                                } else {
+                                    console::warn_1(&"Canvas2D fallback failed".into());
+                                }
+                            }
                         }
                     });
                 }
@@ -108,11 +167,9 @@ fn start_raf_loop() {
             FRAME.with(|f| {
                 let n = f.get().wrapping_add(1);
                 f.set(n);
-                console::log_1(&format!("raf_frame #{}", n).into());
             });
             ECS.with(|ecs| {
                 if let Some(app) = &mut *ecs.borrow_mut() {
-                    console::log_1(&"ecs.run_frame()".into());
                     // Actualizar tamaño del canvas y DPR siempre (independiente de WebGPU)
                     if let Some(win) = window() {
                         if let Some(doc) = win.document() {
@@ -127,9 +184,6 @@ fn start_raf_loop() {
                         }
                     }
                     app.run_frame();
-                    // Debug: log document entity count to verify creations even without renderer
-                    let count = app.document().count();
-                    console::log_1(&format!("document entities = {}", count).into());
                 }
             });
             if let Some(win) = window() {
@@ -229,35 +283,60 @@ pub async fn start() -> Result<(), JsValue> {
 
         #[cfg(all(target_arch = "wasm32", feature = "webgpu"))]
         {
-            // Try WebGPU first
-            spawn_local(async move {
-                match WebGpuRenderer::new(canvas.clone()).await {
-                    Ok(renderer) => {
-                        console::log_1(&"WebGPU inicializado".into());
-                        ECS.with(|ecs| {
-                            if let Some(app) = &mut *ecs.borrow_mut() {
-                                let boxed: Box<dyn RenderPort> = Box::new(renderer);
-                                app.set_renderer(boxed);
-                            }
-                        });
-                    }
-                    Err(e) => {
-                        console::log_2(&"WebGPU init error".into(), &JsValue::from_str(&format!("{e:?}")));
-                        // Fallback to Canvas2D
-                        if let Ok(renderer) = Canvas2DRenderer::new(canvas) {
-                            console::log_1(&"Canvas2D fallback inicializado".into());
+            // Si navigator.gpu no existe, no intentamos WebGPU y vamos directo a Canvas2D para evitar ruido en consola
+            let has_webgpu = js_sys::Reflect::get(
+                &web_sys::window().unwrap().navigator().into(),
+                &JsValue::from_str("gpu"),
+            )
+            .ok()
+            .map(|v| !v.is_undefined() && !v.is_null())
+            .unwrap_or(false);
+
+            if has_webgpu {
+                // Try WebGPU first
+                spawn_local(async move {
+                    match WebGpuRenderer::new(canvas.clone()).await {
+                        Ok(renderer) => {
+                            console::log_1(&"WebGPU inicializado".into());
                             ECS.with(|ecs| {
                                 if let Some(app) = &mut *ecs.borrow_mut() {
                                     let boxed: Box<dyn RenderPort> = Box::new(renderer);
                                     app.set_renderer(boxed);
                                 }
                             });
-                        } else {
-                            console::warn_1(&"Canvas2D fallback failed".into());
+                        }
+                        Err(_e) => {
+                            // Fallback silencioso a Canvas2D
+                            if let Ok(renderer) = Canvas2DRenderer::new(canvas) {
+                                console::log_1(&"Canvas2D fallback".into());
+                                ECS.with(|ecs| {
+                                    if let Some(app) = &mut *ecs.borrow_mut() {
+                                        let boxed: Box<dyn RenderPort> = Box::new(renderer);
+                                        app.set_renderer(boxed);
+                                    }
+                                });
+                            } else {
+                                console::warn_1(&"Canvas2D fallback failed".into());
+                            }
                         }
                     }
+                });
+            } else {
+                // Sin WebGPU: inicializar Canvas2D directamente
+                match Canvas2DRenderer::new(canvas) {
+                    Ok(renderer) => {
+                        console::log_1(&"Canvas2D inicializado".into());
+                        ECS.with(|ecs| {
+                            if let Some(app) = &mut *ecs.borrow_mut() {
+                                let boxed: Box<dyn RenderPort> = Box::new(renderer);
+                                app.set_renderer(boxed);
+                            }
+                        });
+                        announce_renderer("Canvas2D");
+                    }
+                    Err(_) => console::warn_1(&"Canvas2D initialization failed".into()),
                 }
-            });
+            }
         }
 
         #[cfg(all(target_arch = "wasm32", not(feature = "webgpu")))]

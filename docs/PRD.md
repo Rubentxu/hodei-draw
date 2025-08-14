@@ -105,3 +105,32 @@ La arquitectura está diseñada para ser modular, de alto rendimiento y basada e
     * Sistema de bibliotecas de componentes (Cloud, UML, etc.).
     * Inicio del desarrollo de la **arquitectura de plugins (WASM Component Model)**.
     * Lanzamiento de las primeras funcionalidades **Plus/Enterprise** (espacios de trabajo en la nube, gestión de equipos) para el modelo Open Core.
+
+#### **8. Compatibilidad de Renderizado y Controles de UI**
+
+**8.1. Fallback de Renderizado (WebGPU → Canvas2D)**
+
+- La aplicación intenta inicializar WebGPU únicamente si `navigator.gpu` está presente en el entorno.
+- Si WebGPU no está disponible o la inicialización falla, se selecciona automáticamente un renderizador de respaldo basado en Canvas2D, de forma silenciosa (sin errores ruidosos en la consola).
+- El cambio de renderizador se realiza en caliente y se comunica al resto del sistema mediante:
+  - Propiedad global `window.renderer_name` ("WebGPU" | "Canvas2D").
+  - Emisión de un evento `renderer-changed` en `document` para que la UI actualice su indicador.
+
+**8.2. Controles de Selección de Renderer**
+
+- La cabecera de la UI muestra dos botones: "Canvas2D" y "WebGPU".
+- El botón "WebGPU" se deshabilita automáticamente si `navigator.gpu` no está disponible y muestra un tooltip: "WebGPU no soportado en este navegador".
+- Al pulsar "WebGPU", si la inicialización falla, la aplicación realiza fallback a Canvas2D de manera transparente.
+
+**8.3. Indicador de Estado (Renderer Activo y DPR)**
+
+- La UI muestra un indicador textual: `Renderer: <Nombre> | DPR: <valor>`.
+- El indicador se actualiza cuando:
+  - Cambia el renderizador activo (por acción del usuario o por fallback).
+  - Cambia el Device Pixel Ratio (p. ej., al mover la ventana entre pantallas o cambiar el zoom del SO), reaccionando a eventos de `resize`.
+
+**8.4. Requisitos y Consideraciones**
+
+- El núcleo (core/ECS) permanece agnóstico a la plataforma y al backend de renderizado, siguiendo la arquitectura hexagonal (puerto `RenderPort`).
+- El comportamiento de fallback debe ser silencioso en producción para evitar ruido en la consola, manteniendo logs mínimos y útiles.
+- La implementación de WebGPU es experimental en algunos navegadores; la experiencia de usuario debe ser estable con Canvas2D en todos los casos.
