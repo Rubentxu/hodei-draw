@@ -1,16 +1,52 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Hodei Momentum</title>
+    
+    <!-- Primary Meta Tags -->
+    <title>Hodei Draw - Interactive Drawing Canvas</title>
+    <meta name="title" content="Hodei Draw - Interactive Drawing Canvas" />
+    <meta name="description" content="Interactive drawing and diagramming web application built with Rust/WASM. An Excalidraw-style canvas with animation and physics simulation capabilities." />
+    <meta name="keywords" content="drawing, diagram, canvas, rust, webassembly, excalidraw, interactive, whiteboard" />
+    <meta name="author" content="Rubentxu" />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://rubentxu.github.io/hodei-draw/" />
+    <meta property="og:title" content="Hodei Draw - Interactive Drawing Canvas" />
+    <meta property="og:description" content="Interactive drawing and diagramming web application built with Rust/WASM. An Excalidraw-style canvas with animation and physics simulation capabilities." />
+    <meta property="og:site_name" content="Hodei Draw" />
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://rubentxu.github.io/hodei-draw/" />
+    <meta property="twitter:title" content="Hodei Draw - Interactive Drawing Canvas" />
+    <meta property="twitter:description" content="Interactive drawing and diagramming web application built with Rust/WASM. An Excalidraw-style canvas with animation and physics simulation capabilities." />
+    
+    <!-- Favicon and Icons -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🎨</text></svg>" />
+    
+    <!-- Performance and Compatibility -->
+    <meta name="theme-color" content="#007bff" />
+    <meta name="color-scheme" content="light dark" />
+    
     <!-- Trunk builds and links CSS automatically -->
     <link data-trunk rel="css" href="styles.css" />
     <!-- Trunk construirá y enlazará el WASM automáticamente -->
     <link data-trunk rel="rust" data-target-name="app_web" data-cargo-features="webgpu" />
   </head>
   <body>
-    <!-- La UI se monta íntegramente desde Leptos (mount_app).
-         Evitamos duplicar el canvas y los handlers para no interferir con la lógica de creación por arrastre. -->
+    <!-- The UI mounts entirely from Leptos (mount_app).
+         We avoid duplicating the canvas and handlers to not interfere with drag-to-create logic. -->
+    <noscript>
+      <div style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; text-align: center; padding: 20px;">
+        <div>
+          <h1>🎨 Hodei Draw</h1>
+          <p>This application requires JavaScript to run.</p>
+          <p>Please enable JavaScript in your browser to use the interactive drawing canvas.</p>
+        </div>
+      </div>
+    </noscript>
   </body>
 </html>

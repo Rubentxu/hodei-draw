@@ -1,0 +1,85 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  deploy:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+      
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+        targets: wasm32-unknown-unknown
+
+    - name: Cache Rust dependencies
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-on-failure: true
+
+    - name: Install Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: apps/app-web/package-lock.json
+
+    - name: Install Node.js dependencies
+      run: |
+        cd apps/app-web
+        npm ci
+
+    - name: Install Trunk
+      run: cargo install trunk
+
+    - name: Install wasm-opt for optimization
+      run: |
+        wget https://github.com/WebAssembly/binaryen/releases/latest/download/binaryen-version_116-x86_64-linux.tar.gz
+        tar -xzf binaryen-version_116-x86_64-linux.tar.gz
+        sudo cp binaryen-version_116/bin/wasm-opt /usr/local/bin/
+
+    - name: Build for production
+      run: |
+        cd apps/app-web
+        trunk build --release --public-url="/hodei-draw/"
+
+    - name: Optimize WASM
+      run: |
+        cd apps/app-web/dist
+        for wasm in *.wasm; do
+          wasm-opt -Oz "$wasm" -o "$wasm.optimized"
+          mv "$wasm.optimized" "$wasm"
+        done
+
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+
+    - name: Upload to GitHub Pages
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: apps/app-web/dist
+
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4

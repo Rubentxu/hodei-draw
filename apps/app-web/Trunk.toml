@@ -1,5 +1,6 @@
 [build]
 release = true
+public_url = "/hodei-draw/"
 
 [tools]
 # Usa wasm-bindgen por defecto
