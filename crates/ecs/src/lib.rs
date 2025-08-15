@@ -2,9 +2,29 @@
 
 use bevy_ecs::{prelude::*, schedule::Schedule};
 use momentum_core::usecases::Document;
-use momentum_core::model::{Style, Transform, Shape, Color, EntityId};
+use momentum_core::model::{Style, Transform, Shape, Color, EntityId, Hitbox};
 use momentum_core::ports::RenderPort;
 use bevy_ecs::system::NonSendMut;
+
+#[cfg(target_arch = "wasm32")]
+use js_sys;
+#[cfg(target_arch = "wasm32")]
+use web_sys;
+
+// Macro de logging condicional para WASM
+#[cfg(target_arch = "wasm32")]
+macro_rules! log {
+    ($($arg:tt)*) => {
+        web_sys::console::log_1(&format!($($arg)*).into());
+    };
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+macro_rules! log {
+    ($($arg:tt)*) => {
+        println!($($arg)*);
+    };
+}
 
 #[derive(Resource, Default)]
 pub struct AppState {
@@ -23,7 +43,42 @@ fn tick_system(mut state: ResMut<AppState>) {
 pub struct PointerDown {
     pub x: f32,
     pub y: f32,
+    pub ctrl_key: bool, // Para multi-selección
+    pub shift_key: bool, // Para selección rango (futuro)
 }
+
+// Nuevos eventos para manipulación
+#[derive(Debug, Clone, Copy)]
+pub struct MoveStart {
+    pub x: f32,
+    pub y: f32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct MoveUpdate {
+    pub dx: f32, // Delta X desde el inicio del movimiento
+    pub dy: f32, // Delta Y desde el inicio del movimiento
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct MoveEnd;
+
+// Eventos para escalado
+#[derive(Debug, Clone, Copy)]
+pub struct ScaleStart {
+    pub handle_type: momentum_core::model::HandleType,
+    pub x: f32,
+    pub y: f32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ScaleUpdate {
+    pub dx: f32, // Delta X desde el inicio del escalado
+    pub dy: f32, // Delta Y desde el inicio del escalado
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ScaleEnd;
 
 #[derive(Resource, Default)]
 pub struct InputQueue {
@@ -31,6 +86,12 @@ pub struct InputQueue {
     pub create_rect: Vec<CreateRect>,
     pub create_ellipse: Vec<CreateEllipse>,
     pub create_line: Vec<CreateLine>,
+    pub move_start: Vec<MoveStart>,
+    pub move_update: Vec<MoveUpdate>,
+    pub move_end: Vec<MoveEnd>,
+    pub scale_start: Vec<ScaleStart>,
+    pub scale_update: Vec<ScaleUpdate>,
+    pub scale_end: Vec<ScaleEnd>,
 }
 
 // Nuevos eventos para crear otras formas
@@ -44,6 +105,22 @@ pub struct CreateLine { pub x1: f32, pub y1: f32, pub x2: f32, pub y2: f32 }
 #[derive(Resource, Default)]
 pub struct Selection {
     pub selected: Vec<EntityId>,
+}
+
+// Recurso para gestionar el estado de movimiento
+#[derive(Resource, Default)]
+pub struct MoveState {
+    pub is_moving: bool,
+    pub initial_positions: Vec<(EntityId, Transform)>, // Posiciones iniciales de entidades seleccionadas
+}
+
+// Recurso para gestionar el estado de escalado
+#[derive(Resource, Default)]
+pub struct ScaleState {
+    pub is_scaling: bool,
+    pub handle_type: Option<momentum_core::model::HandleType>,
+    pub initial_transforms: Vec<(EntityId, Transform)>, // Transformaciones iniciales
+    pub initial_bounds: momentum_core::model::BoundingBox, // Bounding box inicial del grupo
 }
 
 impl Selection {
@@ -74,6 +151,17 @@ impl Selection {
     }
 }
 
+/// Hit test usando el nuevo sistema de hitbox con fallback al shape
+fn hit_test_entity(click_x: f32, click_y: f32, entity_id: EntityId, transform: &Transform, shape: &Shape, core: &Document) -> bool {
+    if let Some(hitbox) = core.get_hitbox(entity_id) {
+        hitbox.hit_test(click_x, click_y, transform, shape)
+    } else {
+        // Fallback: usar shape como hitbox con tolerancia por defecto
+        let default_hitbox = Hitbox::from_shape(shape);
+        default_hitbox.hit_test(click_x, click_y, transform, shape)
+    }
+}
+
 fn handle_pointer_down_system(
     mut queue: ResMut<InputQueue>,
     core: Res<CoreDoc>,
@@ -83,86 +171,140 @@ fn handle_pointer_down_system(
 ) {
     if queue.pointer_down.is_empty() { return; }
     
-    for event in queue.pointer_down.drain(..) {
+    // Coleccionar eventos primero para evitar problemas de borrow checker
+    let events: Vec<_> = queue.pointer_down.drain(..).collect();
+    
+    for event in &events {
         // Convertir coordenadas de CSS px a píxeles físicos para hit testing
         let click_x = event.x * dpr.0;
         let click_y = event.y * dpr.0;
         
-        // Buscar entidad en la posición del clic
-        let mut found_entity = None;
+        let mut handle_clicked = false;
         
-        for (id, transform, _style, shape) in &core.0.entities {
-            // Convertir transform a píxeles físicos
-            let entity_x = transform.x * dpr.0;
-            let entity_y = transform.y * dpr.0;
+        // PRIORIDAD 1: Verificar si se hizo clic en un scale handle (solo si hay selección)
+        if !selection.selected.is_empty() {
+            // Calcular bounding box combinado de todas las entidades seleccionadas
+            let mut min_x = f32::INFINITY;
+            let mut max_x = f32::NEG_INFINITY;
+            let mut min_y = f32::INFINITY;
+            let mut max_y = f32::NEG_INFINITY;
             
-            // Hit test basado en el tipo de forma
-            let hit = match shape {
-                Shape::Rect { w, h } => {
-                    let w_scaled = w * dpr.0;
-                    let h_scaled = h * dpr.0;
-                    click_x >= entity_x && click_x <= entity_x + w_scaled &&
-                    click_y >= entity_y && click_y <= entity_y + h_scaled
-                }
-                Shape::Ellipse { rx, ry } => {
-                    let rx_scaled = rx * dpr.0;
-                    let ry_scaled = ry * dpr.0;
-                    let dx = click_x - entity_x;
-                    let dy = click_y - entity_y;
-                    (dx * dx) / (rx_scaled * rx_scaled) + (dy * dy) / (ry_scaled * ry_scaled) <= 1.0
-                }
-                Shape::Line { x2, y2 } => {
-                    let x2_scaled = x2 * dpr.0;
-                    let y2_scaled = y2 * dpr.0;
-                    // Distancia punto-línea, con tolerancia
-                    let tolerance = 5.0; // píxeles de tolerancia
-                    let line_length = ((x2_scaled * x2_scaled) + (y2_scaled * y2_scaled)).sqrt();
-                    if line_length == 0.0 { false } else {
-                        let t = ((click_x - entity_x) * x2_scaled + (click_y - entity_y) * y2_scaled) / (line_length * line_length);
-                        let t_clamped = t.clamp(0.0, 1.0);
-                        let proj_x = entity_x + t_clamped * x2_scaled;
-                        let proj_y = entity_y + t_clamped * y2_scaled;
-                        let dist = ((click_x - proj_x) * (click_x - proj_x) + (click_y - proj_y) * (click_y - proj_y)).sqrt();
-                        dist <= tolerance
+            for selected_id in &selection.selected {
+                for (id, transform, _style, shape) in &core.0.entities {
+                    if id == selected_id {
+                        let bbox = momentum_core::model::BoundingBox::from_shape(transform, shape);
+                        min_x = min_x.min(bbox.x);
+                        max_x = max_x.max(bbox.x + bbox.width);
+                        min_y = min_y.min(bbox.y);
+                        max_y = max_y.max(bbox.y + bbox.height);
+                        break;
                     }
                 }
-                Shape::Polygon { points } => {
-                    // Hit test para polígonos usando ray casting algorithm
-                    if points.len() < 3 { false } else {
-                        let mut inside = false;
-                        let mut j = points.len() - 1;
-                        for i in 0..points.len() {
-                            let xi = points[i].0 * dpr.0 + entity_x;
-                            let yi = points[i].1 * dpr.0 + entity_y;
-                            let xj = points[j].0 * dpr.0 + entity_x;
-                            let yj = points[j].1 * dpr.0 + entity_y;
-                            
-                            if ((yi > click_y) != (yj > click_y)) && 
-                               (click_x < (xj - xi) * (click_y - yi) / (yj - yi) + xi) {
-                                inside = !inside;
-                            }
-                            j = i;
-                        }
-                        inside
+            }
+            
+            if min_x < f32::INFINITY {
+                // Crear bounding box combinado y convertir a píxeles físicos
+                let combined_bbox = momentum_core::model::BoundingBox {
+                    x: min_x * dpr.0,
+                    y: min_y * dpr.0,
+                    width: (max_x - min_x) * dpr.0,
+                    height: (max_y - min_y) * dpr.0,
+                };
+                
+                // Generar handles y verificar si se hizo clic en uno
+                let handle_size = 10.0 * dpr.0;
+                let handles = combined_bbox.generate_handles(handle_size);
+                
+                // Usar hitbox circular más grande para mejor interacción con handles
+                let hit_radius = (handle_size * 0.75).max(12.0 * dpr.0); // Más grande que visual
+                
+                for handle in handles {
+                    let handle_center_x = handle.x + handle.size / 2.0;
+                    let handle_center_y = handle.y + handle.size / 2.0;
+                    
+                    let dx = click_x - handle_center_x;
+                    let dy = click_y - handle_center_y;
+                    let distance = (dx * dx + dy * dy).sqrt();
+                    
+                    if distance <= hit_radius {
+                        // Se hizo clic en un handle - iniciar escalado
+                        log!("Clicked on scale handle: {:?} (hit radius: {})", handle.handle_type, hit_radius);
+                        queue.scale_start.push(ScaleStart {
+                            handle_type: handle.handle_type,
+                            x: event.x,
+                            y: event.y,
+                        });
+                        handle_clicked = true;
+                        break; // Solo procesar el primer handle encontrado
                     }
                 }
-            };
-            
-            if hit {
-                found_entity = Some(*id);
-                break; // Seleccionar la primera entidad encontrada
             }
         }
         
-        // Actualizar selección
-        if let Some(entity_id) = found_entity {
-            // Por ahora, una selección simple (reemplaza la selección anterior)
-            // TODO: Agregar soporte para multi-selección con Ctrl/Cmd
-            selection.clear();
-            selection.select(entity_id);
-        } else {
-            // Clic en espacio vacío - limpiar selección
-            selection.clear();
+        // PRIORIDAD 2: Hit test de entidades (solo si no se hizo clic en un handle)
+        if !handle_clicked {
+            let mut found_entity = None;
+            
+            for (id, transform, _style, shape) in &core.0.entities {
+                // Usar el nuevo sistema de hitbox con fallback al shape
+                let transform_physical = Transform {
+                    x: transform.x * dpr.0,
+                    y: transform.y * dpr.0,
+                    scale_x: transform.scale_x * dpr.0,
+                    scale_y: transform.scale_y * dpr.0,
+                    rotation: transform.rotation,
+                };
+                
+                let mut shape_physical = shape.clone();
+                match shape_physical {
+                    Shape::Rect { ref mut w, ref mut h } => {
+                        *w *= dpr.0;
+                        *h *= dpr.0;
+                    }
+                    Shape::Ellipse { ref mut rx, ref mut ry } => {
+                        *rx *= dpr.0;
+                        *ry *= dpr.0;
+                    }
+                    Shape::Line { ref mut x2, ref mut y2 } => {
+                        *x2 *= dpr.0;
+                        *y2 *= dpr.0;
+                    }
+                    Shape::Polygon { ref mut points } => {
+                        for (x, y) in points {
+                            *x *= dpr.0;
+                            *y *= dpr.0;
+                        }
+                    }
+                }
+                
+                if hit_test_entity(click_x, click_y, *id, &transform_physical, &shape_physical, &core.0) {
+                    found_entity = Some(*id);
+                    break; // Seleccionar la primera entidad encontrada
+                }
+            }
+            
+            // Actualizar selección con soporte para multi-selección
+            if let Some(entity_id) = found_entity {
+                log!("Hit detected on entity {}", entity_id.0);
+                if event.ctrl_key {
+                    // Ctrl/Cmd+click: toggle la selección de la entidad
+                    selection.toggle(entity_id);
+                    log!("Toggled entity {} selection", entity_id.0);
+                } else {
+                    // Click normal: selección única (reemplaza la anterior)
+                    selection.clear();
+                    selection.select(entity_id);
+                    log!("Selected entity {}", entity_id.0);
+                }
+                log!("Current selection: {:?}", selection.selected);
+            } else {
+                log!("No entity hit");
+                // Clic en espacio vacío - limpiar selección solo si no se mantiene Ctrl
+                if !event.ctrl_key {
+                    selection.clear();
+                    log!("Cleared selection");
+                }
+            }
         }
     }
 }
@@ -213,6 +355,170 @@ fn handle_create_line_system(
     }
 }
 
+fn handle_move_start_system(
+    mut queue: ResMut<InputQueue>,
+    mut move_state: ResMut<MoveState>,
+    selection: Res<Selection>,
+    core: Res<CoreDoc>,
+) {
+    if queue.move_start.is_empty() { return; }
+    for _ev in queue.move_start.drain(..) {
+        if !selection.selected.is_empty() {
+            // Capturar posiciones iniciales de todas las entidades seleccionadas
+            move_state.initial_positions.clear();
+            for selected_id in &selection.selected {
+                for (id, transform, _style, _shape) in &core.0.entities {
+                    if id == selected_id {
+                        move_state.initial_positions.push((*selected_id, *transform));
+                        break;
+                    }
+                }
+            }
+            move_state.is_moving = true;
+        }
+    }
+}
+
+fn handle_move_update_system(
+    mut queue: ResMut<InputQueue>,
+    move_state: Res<MoveState>,
+    mut core: ResMut<CoreDoc>,
+    dpr: Res<CanvasDpr>,
+) {
+    if queue.move_update.is_empty() || !move_state.is_moving { return; }
+    for ev in queue.move_update.drain(..) {
+        // Convertir delta de CSS px a píxeles físicos
+        let dx = ev.dx * dpr.0;
+        let dy = ev.dy * dpr.0;
+        
+        // Actualizar posiciones de entidades seleccionadas
+        for (move_id, initial_transform) in &move_state.initial_positions {
+            for (id, transform, _style, _shape) in &mut core.0.entities {
+                if id == move_id {
+                    transform.x = initial_transform.x + dx;
+                    transform.y = initial_transform.y + dy;
+                    break;
+                }
+            }
+        }
+    }
+}
+
+fn handle_move_end_system(
+    mut queue: ResMut<InputQueue>,
+    mut move_state: ResMut<MoveState>,
+) {
+    if queue.move_end.is_empty() { return; }
+    for _ev in queue.move_end.drain(..) {
+        move_state.is_moving = false;
+        move_state.initial_positions.clear();
+    }
+}
+
+fn handle_scale_start_system(
+    mut queue: ResMut<InputQueue>,
+    mut scale_state: ResMut<ScaleState>,
+    selection: Res<Selection>,
+    core: Res<CoreDoc>,
+) {
+    if queue.scale_start.is_empty() { return; }
+    for ev in queue.scale_start.drain(..) {
+        if !selection.selected.is_empty() {
+            // Capturar transformaciones iniciales y calcular bounding box del grupo
+            scale_state.initial_transforms.clear();
+            let mut min_x = f32::INFINITY;
+            let mut max_x = f32::NEG_INFINITY;
+            let mut min_y = f32::INFINITY;
+            let mut max_y = f32::NEG_INFINITY;
+            
+            for selected_id in &selection.selected {
+                for (id, transform, _style, shape) in &core.0.entities {
+                    if id == selected_id {
+                        scale_state.initial_transforms.push((*selected_id, *transform));
+                        let bbox = momentum_core::model::BoundingBox::from_shape(transform, shape);
+                        min_x = min_x.min(bbox.x);
+                        max_x = max_x.max(bbox.x + bbox.width);
+                        min_y = min_y.min(bbox.y);
+                        max_y = max_y.max(bbox.y + bbox.height);
+                        break;
+                    }
+                }
+            }
+            
+            scale_state.initial_bounds = momentum_core::model::BoundingBox {
+                x: min_x,
+                y: min_y,
+                width: max_x - min_x,
+                height: max_y - min_y,
+            };
+            scale_state.handle_type = Some(ev.handle_type);
+            scale_state.is_scaling = true;
+        }
+    }
+}
+
+fn handle_scale_update_system(
+    mut queue: ResMut<InputQueue>,
+    scale_state: Res<ScaleState>,
+    mut core: ResMut<CoreDoc>,
+) {
+    if queue.scale_update.is_empty() || !scale_state.is_scaling { return; }
+    for ev in queue.scale_update.drain(..) {
+        let Some(handle_type) = scale_state.handle_type else { continue; };
+        
+        // Calcular factor de escala basado en el handle y el delta
+        let (scale_x, scale_y) = match handle_type {
+            momentum_core::model::HandleType::TopLeft => {
+                let factor_x = 1.0 - ev.dx / scale_state.initial_bounds.width.max(1.0);
+                let factor_y = 1.0 - ev.dy / scale_state.initial_bounds.height.max(1.0);
+                (factor_x.max(0.1), factor_y.max(0.1))
+            },
+            momentum_core::model::HandleType::TopRight => {
+                let factor_x = 1.0 + ev.dx / scale_state.initial_bounds.width.max(1.0);
+                let factor_y = 1.0 - ev.dy / scale_state.initial_bounds.height.max(1.0);
+                (factor_x.max(0.1), factor_y.max(0.1))
+            },
+            momentum_core::model::HandleType::BottomLeft => {
+                let factor_x = 1.0 - ev.dx / scale_state.initial_bounds.width.max(1.0);
+                let factor_y = 1.0 + ev.dy / scale_state.initial_bounds.height.max(1.0);
+                (factor_x.max(0.1), factor_y.max(0.1))
+            },
+            momentum_core::model::HandleType::BottomRight => {
+                let factor_x = 1.0 + ev.dx / scale_state.initial_bounds.width.max(1.0);
+                let factor_y = 1.0 + ev.dy / scale_state.initial_bounds.height.max(1.0);
+                (factor_x.max(0.1), factor_y.max(0.1))
+            },
+            momentum_core::model::HandleType::Top => (1.0, (1.0 - ev.dy / scale_state.initial_bounds.height.max(1.0)).max(0.1)),
+            momentum_core::model::HandleType::Bottom => (1.0, (1.0 + ev.dy / scale_state.initial_bounds.height.max(1.0)).max(0.1)),
+            momentum_core::model::HandleType::Left => ((1.0 - ev.dx / scale_state.initial_bounds.width.max(1.0)).max(0.1), 1.0),
+            momentum_core::model::HandleType::Right => ((1.0 + ev.dx / scale_state.initial_bounds.width.max(1.0)).max(0.1), 1.0),
+        };
+        
+        // Aplicar escala a todas las entidades seleccionadas
+        for (scale_id, initial_transform) in &scale_state.initial_transforms {
+            for (id, transform, _style, _shape) in &mut core.0.entities {
+                if id == scale_id {
+                    transform.scale_x = initial_transform.scale_x * scale_x;
+                    transform.scale_y = initial_transform.scale_y * scale_y;
+                    break;
+                }
+            }
+        }
+    }
+}
+
+fn handle_scale_end_system(
+    mut queue: ResMut<InputQueue>,
+    mut scale_state: ResMut<ScaleState>,
+) {
+    if queue.scale_end.is_empty() { return; }
+    for _ev in queue.scale_end.drain(..) {
+        scale_state.is_scaling = false;
+        scale_state.handle_type = None;
+        scale_state.initial_transforms.clear();
+    }
+}
+
 pub struct MomentumEcsApp {
     world: World,
     schedule: Schedule,
@@ -225,6 +531,8 @@ impl Default for MomentumEcsApp {
         world.insert_resource(CoreDoc(Document::new()));
         world.insert_resource(InputQueue::default());
         world.insert_resource(Selection::default());
+        world.insert_resource(MoveState::default());
+        world.insert_resource(ScaleState::default());
         world.insert_resource(CanvasSize::default());
         world.insert_resource(CanvasDpr(1.0));
 
@@ -235,11 +543,22 @@ impl Default for MomentumEcsApp {
             handle_create_rect_system,
             handle_create_ellipse_system,
             handle_create_line_system,
-            render_system_with_selection,
+            handle_move_start_system,
+            handle_move_update_system,
+            handle_move_end_system,
+            handle_scale_start_system,
+            handle_scale_update_system,
+            handle_scale_end_system,
+            render_system_with_selection_and_handles,
         ));
 
         Self { world, schedule }
     }
+}
+
+pub struct PointerDownResult {
+    pub clicked_handle_type: Option<u8>,
+    pub entity_selected: bool,
 }
 
 impl MomentumEcsApp {
@@ -248,7 +567,88 @@ impl MomentumEcsApp {
     pub fn frames(&mut self) -> u64 { self.world.resource::<AppState>().frames }
     pub fn send_pointer_down(&mut self, x: f32, y: f32) {
         let mut q = self.world.resource_mut::<InputQueue>();
-        q.pointer_down.push(PointerDown { x, y });
+        q.pointer_down.push(PointerDown { x, y, ctrl_key: false, shift_key: false });
+    }
+    
+    pub fn send_pointer_down_with_modifiers(&mut self, x: f32, y: f32, ctrl_key: bool, shift_key: bool) -> PointerDownResult {
+        // Detectar handle click inmediatamente antes de añadir a queue
+        let handle_clicked = self.detect_handle_click(x, y);
+        
+        let mut q = self.world.resource_mut::<InputQueue>();
+        q.pointer_down.push(PointerDown { x, y, ctrl_key, shift_key });
+        
+        PointerDownResult {
+            clicked_handle_type: handle_clicked,
+            entity_selected: false, // TODO: implementar detección de entidad si necesario
+        }
+    }
+    
+    pub fn detect_handle_click(&mut self, x: f32, y: f32) -> Option<u8> {
+        let selection = self.world.resource::<Selection>();
+        let core = self.world.resource::<CoreDoc>();
+        let dpr = self.world.resource::<CanvasDpr>();
+        
+        if selection.selected.is_empty() {
+            return None;
+        }
+        
+        // Convertir coordenadas de CSS px a píxeles físicos
+        let click_x = x * dpr.0;
+        let click_y = y * dpr.0;
+        
+        // Calcular bounding box combinado de todas las entidades seleccionadas
+        let mut min_x = f32::INFINITY;
+        let mut max_x = f32::NEG_INFINITY;
+        let mut min_y = f32::INFINITY;
+        let mut max_y = f32::NEG_INFINITY;
+        
+        for selected_id in &selection.selected {
+            for (id, transform, _style, shape) in &core.0.entities {
+                if id == selected_id {
+                    let bbox = momentum_core::model::BoundingBox::from_shape(transform, shape);
+                    min_x = min_x.min(bbox.x);
+                    max_x = max_x.max(bbox.x + bbox.width);
+                    min_y = min_y.min(bbox.y);
+                    max_y = max_y.max(bbox.y + bbox.height);
+                    break;
+                }
+            }
+        }
+        
+        if min_x >= f32::INFINITY {
+            return None;
+        }
+        
+        // Crear bounding box combinado y convertir a píxeles físicos
+        let combined_bbox = momentum_core::model::BoundingBox {
+            x: min_x * dpr.0,
+            y: min_y * dpr.0,
+            width: (max_x - min_x) * dpr.0,
+            height: (max_y - min_y) * dpr.0,
+        };
+        
+        // Generar handles y verificar si se hizo clic en uno
+        let handle_size = 10.0 * dpr.0;
+        let handles = combined_bbox.generate_handles(handle_size);
+        
+        // Usar hitbox circular más grande para mejor interacción (mismo que en handle_pointer_down_system)
+        let hit_radius = (handle_size * 0.75).max(12.0 * dpr.0);
+        
+        for handle in handles {
+            let handle_center_x = handle.x + handle.size / 2.0;
+            let handle_center_y = handle.y + handle.size / 2.0;
+            
+            let dx = click_x - handle_center_x;
+            let dy = click_y - handle_center_y;
+            let distance = (dx * dx + dy * dy).sqrt();
+            
+            if distance <= hit_radius {
+                log!("Detected handle click immediately: {:?} (hit radius: {})", handle.handle_type, hit_radius);
+                return Some(handle.handle_type.to_u8());
+            }
+        }
+        
+        None
     }
     pub fn send_create_rect(&mut self, x: f32, y: f32, w: f32, h: f32) {
         let mut q = self.world.resource_mut::<InputQueue>();
@@ -265,8 +665,46 @@ impl MomentumEcsApp {
         q.create_line.push(CreateLine { x1, y1, x2, y2 });
     }
     
+    pub fn send_move_start(&mut self, x: f32, y: f32) {
+        let mut q = self.world.resource_mut::<InputQueue>();
+        q.move_start.push(MoveStart { x, y });
+    }
+    
+    pub fn send_move_update(&mut self, dx: f32, dy: f32) {
+        let mut q = self.world.resource_mut::<InputQueue>();
+        q.move_update.push(MoveUpdate { dx, dy });
+    }
+    
+    pub fn send_move_end(&mut self) {
+        let mut q = self.world.resource_mut::<InputQueue>();
+        q.move_end.push(MoveEnd);
+    }
+    
+    pub fn send_scale_start(&mut self, handle_type: momentum_core::model::HandleType, x: f32, y: f32) {
+        let mut q = self.world.resource_mut::<InputQueue>();
+        q.scale_start.push(ScaleStart { handle_type, x, y });
+    }
+    
+    pub fn send_scale_update(&mut self, dx: f32, dy: f32) {
+        let mut q = self.world.resource_mut::<InputQueue>();
+        q.scale_update.push(ScaleUpdate { dx, dy });
+    }
+    
+    pub fn send_scale_end(&mut self) {
+        let mut q = self.world.resource_mut::<InputQueue>();
+        q.scale_end.push(ScaleEnd);
+    }
+    
     pub fn get_selected_entities(&self) -> Vec<EntityId> {
         self.world.resource::<Selection>().selected.clone()
+    }
+    
+    pub fn is_moving(&self) -> bool {
+        self.world.resource::<MoveState>().is_moving
+    }
+    
+    pub fn is_scaling(&self) -> bool {
+        self.world.resource::<ScaleState>().is_scaling
     }
     pub fn document(&self) -> &Document { &self.world.resource::<CoreDoc>().0 }
     pub fn set_renderer(&mut self, renderer: Box<dyn RenderPort>) {
@@ -293,12 +731,14 @@ pub struct CanvasDpr(pub f32);
 /// Wrapper para almacenar un trait object no-Send en el mundo ECS
 pub struct RendererBox(pub Box<dyn RenderPort>);
 
-fn render_system_with_selection(
+fn render_system_with_selection_and_handles(
     renderer: Option<NonSendMut<RendererBox>>, 
     size: Res<CanvasSize>,
     dpr: Res<CanvasDpr>,
     core: Res<CoreDoc>,
     selection: Res<Selection>,
+    move_state: Res<MoveState>,
+    _scale_state: Res<ScaleState>,
 ) {
     // Si no hay renderer (por ejemplo, WebGPU no disponible), omitir el render sin hacer panic.
     let Some(mut renderer) = renderer else { return; };
@@ -351,6 +791,55 @@ fn render_system_with_selection(
         }
         
         let _ = renderer.0.draw_shape(&t, &s_shape, &s);
+    }
+    
+    // Dibujar scale handles para entidades seleccionadas (solo si no estamos en modo movimiento)
+    if !move_state.is_moving && !selection.selected.is_empty() {
+        // DEBUG: Log selection state
+        log!("Selected entities: {:?}", selection.selected);
+        
+        // Calcular bounding box combinado de todas las entidades seleccionadas
+        let mut min_x = f32::INFINITY;
+        let mut max_x = f32::NEG_INFINITY;
+        let mut min_y = f32::INFINITY;
+        let mut max_y = f32::NEG_INFINITY;
+        
+        for selected_id in &selection.selected {
+            for (id, transform, _style, shape) in &core.0.entities {
+                if id == selected_id {
+                    let bbox = momentum_core::model::BoundingBox::from_shape(transform, shape);
+                    log!("Entity {} bbox: {:?}", id.0, bbox);
+                    min_x = min_x.min(bbox.x);
+                    max_x = max_x.max(bbox.x + bbox.width);
+                    min_y = min_y.min(bbox.y);
+                    max_y = max_y.max(bbox.y + bbox.height);
+                    break;
+                }
+            }
+        }
+        
+        if min_x < f32::INFINITY {
+            // Crear bounding box combinado y convertir a píxeles físicos
+            let combined_bbox = momentum_core::model::BoundingBox {
+                x: min_x * dpr.0,
+                y: min_y * dpr.0,
+                width: (max_x - min_x) * dpr.0,
+                height: (max_y - min_y) * dpr.0,
+            };
+            
+            log!("Combined bbox (physical): {:?}", combined_bbox);
+            
+            // Generar y dibujar handles
+            let handle_size = 10.0 * dpr.0; // 10px escalado por DPR (más grande como Excalidraw)
+            let handles = combined_bbox.generate_handles(handle_size);
+            
+            log!("Drawing {} handles", handles.len());
+            
+            for handle in handles {
+                log!("Drawing handle: {:?}", handle);
+                let _ = renderer.0.draw_scale_handle(&handle);
+            }
+        }
     }
     
     let _ = renderer.0.end_frame();

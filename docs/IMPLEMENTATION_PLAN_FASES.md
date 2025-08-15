@@ -27,6 +27,10 @@ Progreso reciente (estado a 2025-08-15)
 - ✅ **CI/CD Pipeline**: GitHub Actions con deployment automático, wasm-opt, optimización completa
 - ✅ **Documentación Profesional**: README bilingüe, CONTRIBUTING, templates, licencia MIT
 - ✅ **Bug crítico resuelto**: Transform Default corregido (escala 1.0) - renderizado ahora funciona correctamente
+- ✅ **Sistema de Scale Handles Completo**: 8 direcciones de resize con feedback visual inmediato
+- ✅ **Cursor Dinámico**: Sistema de hover con cursores contextuales (grab, resize directions, default)
+- ✅ **Hit Testing Avanzado**: Hitbox system con prioridades (handles > shapes) para interacciones precisas
+- ✅ **Testing E2E Robusto**: Framework Playwright con 3/4 test suites pasando y validación visual
 
 Pila tecnológica
 - UI: Leptos (CSR)
@@ -96,7 +100,7 @@ Timeline sugerido (10 semanas)
 - **ESTADO ACTUAL**: 🎉 **MVP con Demo Público ya disponible** (adelantado 4 semanas)
 - ⏳ S7: import/export SVG/PNG  
 - ⏳ S8: IndexedDB + JSON versionado + autosave
-- ⏳ S9: undo/redo + tests snapshot/property + manipulación avanzada
+- ⏳ S9: undo/redo + tests snapshot/property + ✅ manipulación avanzada (scale handles completado)
 - ⏳ S10: polish final de Phase 1
 
 Criterios de aceptación (F1)

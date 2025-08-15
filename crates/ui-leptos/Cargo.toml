@@ -15,11 +15,14 @@ momentum-design-system = { path = "../design-system" }
 leptos = { version = "0.8.6", default-features = false, features = ["csr"] }
 web-sys = { version = "0.3.77", features = [
   "Window",
+  "Navigator",
   "HtmlCanvasElement",
   "CanvasRenderingContext2d",
   "Element",
   "DomRect",
   "DomRectReadOnly",
-  "console"
+  "console",
+  "CustomEvent",
+  "Document"
 ] }
 js-sys = "0.3.77"

@@ -150,6 +150,17 @@ struct Style {
     stroke_width: f32,
 }
 
+// Advanced Hit Testing: Separates interaction zones from visual shapes
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum Hitbox {
+    FromShape { tolerance: f32 },    // Use shape geometry + tolerance
+    Rect { x: f32, y: f32, w: f32, h: f32 },  // Custom rectangular area
+    Circle { x: f32, y: f32, radius: f32 },   // Custom circular area
+    Polygon { points: Vec<(f32, f32)> },      // Custom polygonal area
+    Multiple(Vec<Hitbox>),           // Composite hitboxes
+    None,                            // No interaction possible
+}
+
 // Systems: Logic that operates on components
 fn render_system(
     query: Query<(&Transform, &Style), With<Shape>>,

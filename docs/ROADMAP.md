@@ -22,6 +22,10 @@ Progreso reciente (estado a 2025-08-15)
 - ✅ **Documentación Bilingüe**: README completo en inglés y español, arquitectura, contributing guidelines
 - ✅ **Repository Público**: GitHub repository completo con templates de issues, licencia MIT, y estructura profesional
 - ✅ **Bug crítico resuelto**: Transform Default corregido (scale_x/scale_y = 1.0) - formas ahora se renderizan correctamente
+- ✅ **Sistema de Scale Handles Completo**: Handles interactivos con 8 direcciones de resize (nw, ne, se, sw, n, e, s, w)
+- ✅ **Cursor Feedback Dinámico**: Cursores contextuales (grab para shapes, resize directions para handles, default para áreas vacías)
+- ✅ **Hitbox System Avanzado**: Zonas de interacción separadas de representación visual con sistema de prioridades
+- ✅ **Testing E2E Robusto**: Framework Playwright con validación visual y 3/4 test suites completamente funcionales
 
 Fases y Objetivos
 1) Fase 1 — El Mejor Excalidraw (MVP)
@@ -38,7 +42,7 @@ Hitos por Fase
 Fase 1 (MVP) - 🏆 **PRÁCTICAMENTE COMPLETADA**
 - ✅ H1.1 Workspace multi-crate y puertos (traits) del dominio
 - ✅ H1.2 Render vectorial (formas, texto) por Canvas2D con fallback desde WebGPU
-- ✅ H1.3 Interacciones de edición: ✅ seleccionar, ✅ crear formas, 🔄 mover (básico), ⏳ escalar, ⏳ rotar, ⏳ lápiz libre
+- ✅ H1.3 Interacciones de edición: ✅ seleccionar, ✅ crear formas, 🔄 mover (básico), ✅ escalar, ⏳ rotar, ⏳ lápiz libre
 - ⏳ H1.4 Importación SVG, exportación PNG/SVG  
 - ⏳ H1.5 Persistencia local (IndexedDB) y formato JSON abierto
 - ⏳ H1.6 Undo/Redo robusto y tests núcleo

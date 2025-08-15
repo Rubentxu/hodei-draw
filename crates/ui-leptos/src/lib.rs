@@ -97,6 +97,16 @@ pub fn App() -> impl IntoView {
     let theme_provider = ThemeProvider::new();
     let (current_theme, set_current_theme) = signal(theme_provider.effective_theme());
 
+    // Estado de movimiento para herramienta Select
+    let (is_dragging_selection, set_is_dragging_selection) = signal(false);
+    
+    // Estado de escalado para herramienta Select
+    let (is_scaling, set_is_scaling) = signal(false);
+    let (scale_handle_type, set_scale_handle_type) = signal::<Option<u8>>(None);
+    
+    // Estado del cursor para feedback visual
+    let (cursor_state, set_cursor_state) = signal("default".to_string());
+    
     // Handlers de puntero básicos
     let drag_start_down = drag_start.clone();
     let on_pointer_down = move |ev: leptos::ev::PointerEvent| {
@@ -108,6 +118,58 @@ pub fn App() -> impl IntoView {
                 let _ = elem.set_pointer_capture(ev.pointer_id());
             }
         }
+        
+        // Si es herramienta Select, manejar selección y posible inicio de movimiento
+        if tool.get_untracked() == Tool::Select {
+            // Limpiar estado previo
+            set_is_scaling.set(false);
+            set_scale_handle_type.set(None);
+            set_is_dragging_selection.set(false);
+            set_cursor_state.set("default".to_string());
+            
+            let ctrl_key = ev.ctrl_key();
+            let shift_key = ev.shift_key();
+            let win = window();
+            let global: JsValue = win.into();
+            if let Ok(func_val) = Reflect::get(&global, &JsValue::from_str("ecs_pointer_down_with_modifiers")) {
+                if let Ok(func) = func_val.dyn_into::<Function>() {
+                    let args = js_sys::Array::new();
+                    args.push(&JsValue::from_f64(x as f64));
+                    args.push(&JsValue::from_f64(y as f64));
+                    args.push(&JsValue::from_bool(ctrl_key));
+                    args.push(&JsValue::from_bool(shift_key));
+                    
+                    // Procesar respuesta inmediata
+                    if let Ok(result_val) = func.apply(&JsValue::NULL, &args) {
+                        // Extraer clicked_handle_type de la respuesta
+                        if let Ok(clicked_handle) = Reflect::get(&result_val, &JsValue::from_str("clicked_handle_type")) {
+                            if !clicked_handle.is_undefined() && !clicked_handle.is_null() {
+                                if let Some(handle_type) = clicked_handle.as_f64() {
+                                    let handle_type_u8 = handle_type as u8;
+                                    set_scale_handle_type.set(Some(handle_type_u8));
+                                    console::log_1(&format!("UI: Handle clicked immediately, type: {}", handle_type_u8).into());
+                                    
+                                    // Setear cursor apropiado basado en handle type
+                                    let cursor = match handle_type_u8 {
+                                        0 => "nw-resize", // TopLeft
+                                        1 => "ne-resize", // TopRight  
+                                        2 => "sw-resize", // BottomLeft
+                                        3 => "se-resize", // BottomRight
+                                        4 => "n-resize",  // Top
+                                        5 => "e-resize",  // Right
+                                        6 => "s-resize",  // Bottom
+                                        7 => "w-resize",  // Left
+                                        _ => "default",
+                                    };
+                                    set_cursor_state.set(cursor.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
         drag_start_down.set(Some((x, y)));
         set_drag_preview.set(None);
     };
@@ -116,41 +178,167 @@ pub fn App() -> impl IntoView {
     let drag_start_move = drag_start.clone();
 
     let on_pointer_move = move |ev: leptos::ev::PointerEvent| {
+        let (ex, ey) = event_to_canvas_css(&ev).unwrap_or((ev.offset_x() as f32, ev.offset_y() as f32));
+        
+        // HOVER DETECTION (cuando no se está arrastrando)
+        if ev.buttons() == 0 && tool.get_untracked() == Tool::Select {
+            // Detectar hover sobre handles (prioridad)
+            let win = window();
+            let global: JsValue = win.into();
+            let mut handle_detected = false;
+            
+            // Llamar a detect_handle_click para ver si hay un handle bajo el cursor
+            if let Ok(func_val) = Reflect::get(&global, &JsValue::from_str("ecs_detect_handle_hover")) {
+                if let Ok(func) = func_val.dyn_into::<Function>() {
+                    let args = js_sys::Array::new();
+                    args.push(&JsValue::from_f64(ex as f64));
+                    args.push(&JsValue::from_f64(ey as f64));
+                    
+                    if let Ok(result_val) = func.apply(&JsValue::NULL, &args) {
+                        if !result_val.is_undefined() && !result_val.is_null() {
+                            if let Some(handle_type) = result_val.as_f64() {
+                                let handle_type_u8 = handle_type as u8;
+                                let cursor = match handle_type_u8 {
+                                    0 => "nw-resize", // TopLeft
+                                    1 => "ne-resize", // TopRight  
+                                    2 => "sw-resize", // BottomLeft
+                                    3 => "se-resize", // BottomRight
+                                    4 => "n-resize",  // Top
+                                    5 => "e-resize",  // Right
+                                    6 => "s-resize",  // Bottom
+                                    7 => "w-resize",  // Left
+                                    _ => "default",
+                                };
+                                set_cursor_state.set(cursor.to_string());
+                                handle_detected = true;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Si no hay handle, detectar hover sobre shapes
+            if !handle_detected {
+                if let Ok(func_val) = Reflect::get(&global, &JsValue::from_str("ecs_detect_shape_hover")) {
+                    if let Ok(func) = func_val.dyn_into::<Function>() {
+                        let args = js_sys::Array::new();
+                        args.push(&JsValue::from_f64(ex as f64));
+                        args.push(&JsValue::from_f64(ey as f64));
+                        
+                        if let Ok(result_val) = func.apply(&JsValue::NULL, &args) {
+                            if let Some(has_shape) = result_val.as_bool() {
+                                if has_shape {
+                                    set_cursor_state.set("grab".to_string());
+                                } else {
+                                    set_cursor_state.set("default".to_string());
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    set_cursor_state.set("default".to_string());
+                }
+            }
+        }
+        
+        // DRAG LOGIC (cuando se está arrastrando)
         if ev.buttons() & 1 == 1 {
             if let Some((sx, sy)) = drag_start_move.get() {
                 let (ex, ey) = event_to_canvas_css(&ev).unwrap_or((ev.offset_x() as f32, ev.offset_y() as f32));
-                let dx = (ex - sx).abs();
-                let dy = (ey - sy).abs();
-                if dx > DRAG_THRESHOLD || dy > DRAG_THRESHOLD {
-                    let preview = match tool.get_untracked() {
+                let dx_abs = (ex - sx).abs();
+                let dy_abs = (ey - sy).abs();
+                
+                if dx_abs > DRAG_THRESHOLD || dy_abs > DRAG_THRESHOLD {
+                    match tool.get_untracked() {
+                        Tool::Select => {
+                            // Verificar si estamos escalando (decidido inmediatamente en pointer_down)
+                            if let Some(handle_type) = scale_handle_type.get_untracked() {
+                                // MODO ESCALADO
+                                if !is_scaling.get_untracked() {
+                                    set_is_scaling.set(true);
+                                    let win = window();
+                                    let global: JsValue = win.into();
+                                    if let Ok(func_val) = Reflect::get(&global, &JsValue::from_str("ecs_scale_start")) {
+                                        if let Ok(func) = func_val.dyn_into::<Function>() {
+                                            let args = js_sys::Array::new();
+                                            args.push(&JsValue::from_f64(handle_type as f64));
+                                            args.push(&JsValue::from_f64(sx as f64));
+                                            args.push(&JsValue::from_f64(sy as f64));
+                                            let _ = func.apply(&JsValue::NULL, &args);
+                                        }
+                                    }
+                                    console::log_1(&"UI: Started scaling mode".into());
+                                }
+                                
+                                // Enviar update de escalado con delta relativo al punto de inicio
+                                let dx = ex - sx;
+                                let dy = ey - sy;
+                                let win = window();
+                                let global: JsValue = win.into();
+                                if let Ok(func_val) = Reflect::get(&global, &JsValue::from_str("ecs_scale_update")) {
+                                    if let Ok(func) = func_val.dyn_into::<Function>() {
+                                        let args = js_sys::Array::new();
+                                        args.push(&JsValue::from_f64(dx as f64));
+                                        args.push(&JsValue::from_f64(dy as f64));
+                                        let _ = func.apply(&JsValue::NULL, &args);
+                                    }
+                                }
+                            } else {
+                                // MODO MOVIMIENTO - solo si no hay handle activo
+                                if !is_dragging_selection.get_untracked() {
+                                    set_is_dragging_selection.set(true);
+                                    set_cursor_state.set("grabbing".to_string());
+                                    let win = window();
+                                    let global: JsValue = win.into();
+                                    if let Ok(func_val) = Reflect::get(&global, &JsValue::from_str("ecs_move_start")) {
+                                        if let Ok(func) = func_val.dyn_into::<Function>() {
+                                            let args = js_sys::Array::new();
+                                            args.push(&JsValue::from_f64(sx as f64));
+                                            args.push(&JsValue::from_f64(sy as f64));
+                                            let _ = func.apply(&JsValue::NULL, &args);
+                                        }
+                                    }
+                                    console::log_1(&"UI: Started dragging mode".into());
+                                }
+                                
+                                // Enviar update de movimiento con delta relativo al punto de inicio
+                                let dx = ex - sx;
+                                let dy = ey - sy;
+                                let win = window();
+                                let global: JsValue = win.into();
+                                if let Ok(func_val) = Reflect::get(&global, &JsValue::from_str("ecs_move_update")) {
+                                    if let Ok(func) = func_val.dyn_into::<Function>() {
+                                        let args = js_sys::Array::new();
+                                        args.push(&JsValue::from_f64(dx as f64));
+                                        args.push(&JsValue::from_f64(dy as f64));
+                                        let _ = func.apply(&JsValue::NULL, &args);
+                                    }
+                                }
+                            }
+                            set_drag_preview.set(None);
+                        }
                         Tool::Rect => {
                             let x = sx.min(ex);
                             let y = sy.min(ey);
-                            let w = dx.max(1.0);
-                            let h = dy.max(1.0);
-                            PreviewShape::Rect { x, y, w, h }
+                            let w = dx_abs.max(1.0);
+                            let h = dy_abs.max(1.0);
+                            set_drag_preview.set(Some(PreviewShape::Rect { x, y, w, h }));
                         }
                         Tool::Ellipse => {
                             let x = sx.min(ex);
                             let y = sy.min(ey);
-                            let w = dx.max(1.0);
-                            let h = dy.max(1.0);
+                            let w = dx_abs.max(1.0);
+                            let h = dy_abs.max(1.0);
                             let rx = w / 2.0;
                             let ry = h / 2.0;
                             let cx = x + rx;
                             let cy = y + ry;
-                            PreviewShape::Ellipse { cx, cy, rx, ry }
+                            set_drag_preview.set(Some(PreviewShape::Ellipse { cx, cy, rx, ry }));
                         }
                         Tool::Line => {
-                            PreviewShape::Line { x1: sx, y1: sy, x2: ex, y2: ey }
+                            set_drag_preview.set(Some(PreviewShape::Line { x1: sx, y1: sy, x2: ex, y2: ey }));
                         }
-                        Tool::Select => {
-                            // No hay previsualización para herramienta de selección
-                            set_drag_preview.set(None);
-                            return;
-                        }
-                    };
-                    set_drag_preview.set(Some(preview));
+                    }
                 } else {
                     set_drag_preview.set(None);
                 }
@@ -223,7 +411,34 @@ pub fn App() -> impl IntoView {
                         }
                     }
                     Tool::Select => {
-                        // Para herramienta de selección, no crear nada
+                        // Finalizar escalado si estaba activo
+                        if is_scaling.get_untracked() {
+                            let win = window();
+                            let global: JsValue = win.into();
+                            if let Ok(func_val) = Reflect::get(&global, &JsValue::from_str("ecs_scale_end")) {
+                                if let Ok(func) = func_val.dyn_into::<Function>() {
+                                    let _ = func.apply(&JsValue::NULL, &js_sys::Array::new());
+                                }
+                            }
+                            set_is_scaling.set(false);
+                            set_scale_handle_type.set(None);
+                            console::log_1(&"UI: Ended scaling mode".into());
+                        }
+                        // Finalizar movimiento si estaba activo
+                        else if is_dragging_selection.get_untracked() {
+                            let win = window();
+                            let global: JsValue = win.into();
+                            if let Ok(func_val) = Reflect::get(&global, &JsValue::from_str("ecs_move_end")) {
+                                if let Ok(func) = func_val.dyn_into::<Function>() {
+                                    let _ = func.apply(&JsValue::NULL, &js_sys::Array::new());
+                                }
+                            }
+                            set_is_dragging_selection.set(false);
+                            console::log_1(&"UI: Ended dragging mode".into());
+                        }
+                        
+                        // Resetear cursor a default
+                        set_cursor_state.set("default".to_string());
                     }
                 }
             } // Si no supera umbral, tratamos como click: no se crea rectángulo
@@ -231,6 +446,23 @@ pub fn App() -> impl IntoView {
         drag_start_up.set(None);
         set_drag_preview.set(None);
     };
+
+    // Efecto para cambiar cursor dinámicamente (aplicar al canvas directamente)
+    Effect::new(move |_| {
+        let cursor = cursor_state.get();
+        let win = window();
+        if let Some(document) = win.document() {
+            // Buscar el elemento canvas y aplicar el cursor directamente
+            if let Ok(canvas) = document.query_selector("canvas") {
+                if let Some(canvas_element) = canvas {
+                    if let Ok(html_element) = canvas_element.dyn_into::<web_sys::HtmlElement>() {
+                        let style = html_element.style();
+                        let _ = style.set_property("cursor", &cursor);
+                    }
+                }
+            }
+        }
+    });
 
     // Ajustar tamaño del canvas en mount y en resize del viewport
     Effect::new(move |_| {
@@ -354,7 +586,17 @@ pub fn App() -> impl IntoView {
                                         }
                                     }
                                     Tool::Select => {
-                                        // Para herramienta de selección, no crear nada
+                                        // Finalizar movimiento si estaba activo
+                                        if is_dragging_selection.get_untracked() {
+                                            let win = window();
+                                            let global: JsValue = win.into();
+                                            if let Ok(func_val) = Reflect::get(&global, &JsValue::from_str("ecs_move_end")) {
+                                                if let Ok(func) = func_val.dyn_into::<Function>() {
+                                                    let _ = func.apply(&JsValue::NULL, &js_sys::Array::new());
+                                                }
+                                            }
+                                            set_is_dragging_selection.set(false);
+                                        }
                                     }
                                 }
                             }

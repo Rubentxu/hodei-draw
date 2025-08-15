@@ -40,3 +40,15 @@ tmp/
 .env
 .env.*
 releases/
+
+# Playwright test resources
+tests/test-results/
+tests/playwright-report/
+tests/node_modules/
+tests/package-lock.json
+tests/screenshots/
+tests/playwright-tests/**/*-snapshots/
+tests/playwright-tests/**/videos/
+tests/playwright-tests/**/screenshots/
+tests/playwright-tests/**/*.png
+tests/playwright-tests/**/*.webm

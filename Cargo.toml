@@ -1,9 +1,10 @@
 [workspace]
 members = [
   "crates/core",
-  "apps/app-web",
+  "apps/app-web", 
   "crates/ecs",
   "crates/ui-leptos",
   "crates/design-system",
+  "tests",
 ]
 resolver = "2"

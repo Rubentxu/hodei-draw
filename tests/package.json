@@ -1,0 +1,17 @@
+{
+  "name": "hodei-draw-e2e-tests",
+  "version": "1.0.0",
+  "description": "E2E tests for Hodei Draw using Playwright",
+  "main": "index.js",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:ui": "playwright test --ui",
+    "install-browsers": "playwright install"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.47.0"
+  },
+  "devDependencies": {}
+}
