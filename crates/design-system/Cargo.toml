@@ -1,25 +1,23 @@
 [package]
-name = "momentum-ui-leptos"
+name = "momentum-design-system"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "momentum_ui_leptos"
+name = "momentum_design_system"
 path = "src/lib.rs"
 
 [dependencies]
-momentum-core = { path = "../core" }
-momentum-design-system = { path = "../design-system" }
+serde = { version = "1.0", features = ["derive"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 leptos = { version = "0.8.6", default-features = false, features = ["csr"] }
 web-sys = { version = "0.3.77", features = [
   "Window",
-  "HtmlCanvasElement",
-  "CanvasRenderingContext2d",
+  "Document",
   "Element",
-  "DomRect",
-  "DomRectReadOnly",
+  "Storage",
+  "MediaQueryList",
   "console"
 ] }
 js-sys = "0.3.77"

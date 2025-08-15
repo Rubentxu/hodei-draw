@@ -10,6 +10,9 @@ help:
 
 serve:
 	@echo "🚀 Sirviendo la aplicación en modo desarrollo..."
+	@echo "📝 Compilando CSS con Tailwind..."
+	@cd apps/app-web && npm run build-css-once
+	@echo "🌐 Iniciando servidor de desarrollo..."
 	@cd apps/app-web && trunk serve --open --features webgpu
 
 build:

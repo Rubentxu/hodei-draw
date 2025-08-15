@@ -4,5 +4,6 @@ members = [
   "apps/app-web",
   "crates/ecs",
   "crates/ui-leptos",
+  "crates/design-system",
 ]
 resolver = "2"

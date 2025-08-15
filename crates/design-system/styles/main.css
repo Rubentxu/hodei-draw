@@ -1,0 +1,226 @@
+/* Hodei Momentum Design System - Main Stylesheet */
+@import "tailwindcss";
+
+/* Tailwind 4 Theme Configuration */
+@theme {
+  /* Custom Color Palette */
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-900: #1e3a8a;
+  
+  /* Extended Neutral Palette */
+  --color-neutral-50: #f8fafc;
+  --color-neutral-100: #f1f5f9;
+  --color-neutral-200: #e2e8f0;
+  --color-neutral-300: #cbd5e1;
+  --color-neutral-400: #94a3b8;
+  --color-neutral-500: #64748b;
+  --color-neutral-600: #475569;
+  --color-neutral-700: #334155;
+  --color-neutral-800: #1e293b;
+  --color-neutral-900: #0f172a;
+  
+  /* Semantic Colors */
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+  
+  /* Custom Spacing Scale */
+  --spacing-xs: 0.25rem;    /* 4px */
+  --spacing-sm: 0.5rem;     /* 8px */
+  --spacing-md: 0.75rem;    /* 12px */
+  --spacing-lg: 1rem;       /* 16px */
+  --spacing-xl: 1.5rem;     /* 24px */
+  --spacing-2xl: 2rem;      /* 32px */
+  --spacing-3xl: 3rem;      /* 48px */
+  
+  /* Custom Border Radius */
+  --radius-sm: 0.25rem;     /* 4px */
+  --radius-md: 0.375rem;    /* 6px */
+  --radius-lg: 0.5rem;      /* 8px */
+  --radius-xl: 0.75rem;     /* 12px */
+  
+  /* Custom Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  
+  /* Typography Scale */
+  --font-size-xs: 0.75rem;    /* 12px */
+  --font-size-sm: 0.875rem;   /* 14px */
+  --font-size-base: 1rem;     /* 16px */
+  --font-size-lg: 1.125rem;   /* 18px */
+  --font-size-xl: 1.25rem;    /* 20px */
+  --font-size-2xl: 1.5rem;    /* 24px */
+  --font-size-3xl: 1.875rem;  /* 30px */
+  
+  /* Font Families */
+  --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+  
+  /* Custom Breakpoints */
+  --breakpoint-3xl: 1920px;
+}
+
+/* Base Styles */
+.hodei-app {
+  font-family: var(--font-sans);
+  color: var(--color-neutral-900);
+  background-color: var(--color-neutral-50);
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+/* Theme Classes */
+.theme-light {
+  --text-primary: var(--color-neutral-900);
+  --text-secondary: var(--color-neutral-600);
+  --text-tertiary: var(--color-neutral-400);
+  --bg-primary: #ffffff;
+  --bg-secondary: var(--color-neutral-50);
+  --bg-tertiary: var(--color-neutral-100);
+  --border-primary: var(--color-neutral-200);
+  --border-secondary: var(--color-neutral-300);
+}
+
+.theme-dark {
+  --text-primary: var(--color-neutral-100);
+  --text-secondary: var(--color-neutral-400);
+  --text-tertiary: var(--color-neutral-600);
+  --bg-primary: var(--color-neutral-900);
+  --bg-secondary: var(--color-neutral-800);
+  --bg-tertiary: var(--color-neutral-700);
+  --border-primary: var(--color-neutral-700);
+  --border-secondary: var(--color-neutral-600);
+  
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+}
+
+/* System theme follows CSS media query */
+.theme-system {
+  --text-primary: var(--color-neutral-900);
+  --text-secondary: var(--color-neutral-600);
+  --text-tertiary: var(--color-neutral-400);
+  --bg-primary: #ffffff;
+  --bg-secondary: var(--color-neutral-50);
+  --bg-tertiary: var(--color-neutral-100);
+  --border-primary: var(--color-neutral-200);
+  --border-secondary: var(--color-neutral-300);
+}
+
+@media (prefers-color-scheme: dark) {
+  .theme-system {
+    --text-primary: var(--color-neutral-100);
+    --text-secondary: var(--color-neutral-400);
+    --text-tertiary: var(--color-neutral-600);
+    --bg-primary: var(--color-neutral-900);
+    --bg-secondary: var(--color-neutral-800);
+    --bg-tertiary: var(--color-neutral-700);
+    --border-primary: var(--color-neutral-700);
+    --border-secondary: var(--color-neutral-600);
+    
+    color: var(--text-primary);
+    background-color: var(--bg-primary);
+  }
+}
+
+/* Component Base Classes */
+.btn-base {
+  @apply px-4 py-2 rounded-md font-medium transition-all duration-200 ease-in-out;
+  @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
+}
+
+.btn-primary {
+  @apply btn-base bg-primary-500 text-white;
+  @apply hover:bg-primary-600 active:bg-primary-700;
+  @apply focus:ring-primary-500;
+}
+
+.btn-secondary {
+  @apply btn-base border;
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+  border-color: var(--border-primary);
+}
+
+.btn-secondary:hover {
+  background-color: var(--bg-secondary);
+}
+
+.input-base {
+  @apply px-3 py-2 rounded-md text-sm;
+  @apply focus:outline-none focus:ring-2 focus:ring-primary-500;
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+}
+
+.panel-base {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  @apply rounded-lg shadow-sm;
+}
+
+.toolbar-base {
+  background-color: var(--bg-primary);
+  border-bottom: 1px solid var(--border-primary);
+  @apply flex items-center gap-2 px-4 py-2;
+}
+
+/* Canvas Specific Styles */
+.canvas-container {
+  background-color: var(--bg-secondary);
+  @apply relative overflow-hidden;
+}
+
+.canvas-grid {
+  background-image: 
+    radial-gradient(circle, var(--border-primary) 1px, transparent 1px);
+  background-size: 20px 20px;
+  opacity: 0.5;
+}
+
+/* Preview Overlay Styles */
+.preview-rect {
+  @apply pointer-events-none border-2 border-dashed border-primary-500;
+  background-color: rgb(59 130 246 / 0.06);
+}
+
+.preview-ellipse {
+  @apply pointer-events-none border-2 border-dashed border-primary-500 rounded-full;
+  background-color: rgb(59 130 246 / 0.06);
+}
+
+.preview-line {
+  @apply pointer-events-none bg-primary-500;
+}
+
+/* Selection Styles */
+.shape-selected {
+  @apply ring-2 ring-primary-500 ring-offset-2;
+}
+
+/* Utility Classes */
+.text-theme-primary {
+  color: var(--text-primary);
+}
+
+.text-theme-secondary {
+  color: var(--text-secondary);
+}
+
+.bg-theme-primary {
+  background-color: var(--bg-primary);
+}
+
+.bg-theme-secondary {
+  background-color: var(--bg-secondary);
+}
+
+.border-theme-primary {
+  border-color: var(--border-primary);
+}

@@ -3,12 +3,7 @@
 #[cfg(target_arch = "wasm32")]
 use leptos::*;
 #[cfg(target_arch = "wasm32")]
-use momentum_design_system::{
-    Theme, 
-    theme_provider::ThemeProvider,
-    icons::{Icon, IconType, IconSize},
-    toolbar::{FloatingToolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, Sidebar, SidebarButton, ThemeToggle}
-};
+use momentum_design_system::{Theme, theme_provider::ThemeProvider};
 #[cfg(target_arch = "wasm32")]
 // create_effect está deprecado; usar Effect::new
 use leptos::prelude::Effect;
@@ -17,17 +12,16 @@ use leptos::mount::mount_to_body;
 #[cfg(target_arch = "wasm32")]
 use leptos::prelude::{
     ElementChild,
+    StyleAttribute,
     signal,
     OnAttribute,
     GlobalAttributes,
     PropAttribute,
     ClassAttribute,
-    StyleAttribute,
     Get,
     Set,
     GetUntracked,
     window,
-    IntoView,
 };
 #[cfg(target_arch = "wasm32")]
 use leptos::wasm_bindgen::JsCast;
@@ -46,7 +40,6 @@ fn event_to_canvas_css(ev: &leptos::ev::PointerEvent) -> Option<(f32, f32)> {
     let doc = document();
     let elem = doc.get_element_by_id("main-canvas").and_then(|e| e.dyn_into::<HtmlCanvasElement>().ok())?;
     let rect = elem.get_bounding_client_rect();
-    // Restar las coordenadas del canvas para obtener coordenadas relativas al canvas
     let x = ev.client_x() as f64 - rect.left();
     let y = ev.client_y() as f64 - rect.top();
     Some((x as f32, y as f32))
@@ -83,7 +76,7 @@ pub fn App() -> impl IntoView {
 
     // Umbral mínimo de arrastre para considerar creación (evitar click simple -> rect diminuto)
     const DRAG_THRESHOLD: f32 = 4.0;
-    let (tool, set_tool) = signal(Tool::Select);
+    let (tool, set_tool) = signal(Tool::Rect);
     // Estado local para drag-to-create (coords en CSS px relativos al canvas)
     let drag_start = std::rc::Rc::new(std::cell::Cell::new(None::<(f32, f32)>));
     // Previsualización de forma durante arrastre
@@ -371,180 +364,103 @@ pub fn App() -> impl IntoView {
     });
 
     view! {
-        <div id="app" class="hodei-app">
-            // Sidebar izquierdo estilo Excalidraw
-            <Sidebar>
-                <SidebarButton 
-                    icon=IconType::Menu 
-                    tooltip="Menú"
-                />
-                <SidebarButton 
-                    icon=IconType::New 
-                    tooltip="Nuevo"
-                />
-                <SidebarButton 
-                    icon=IconType::Open 
-                    tooltip="Abrir"
-                />
-                <SidebarButton 
-                    icon=IconType::Save 
-                    tooltip="Guardar"
-                />
-                <SidebarButton 
-                    icon=IconType::Export 
-                    tooltip="Exportar"
-                />
-                
-                <div class="h-2" />
-                
-                <SidebarButton 
-                    icon=IconType::Settings 
-                    tooltip="Configuración"
-                />
-            </Sidebar>
-            
-            // Área del canvas
-            <div class="canvas-area">
-                <canvas
-                    id="main-canvas"
-                    class="main-canvas"
-                    on:pointerdown=on_pointer_down
-                    on:pointermove=on_pointer_move
-                    on:pointerup=on_pointer_up
-                />
-                
-                // Overlay de previsualización durante el arrastre
-                {move || {
-                    if let Some(preview) = drag_preview.get() {
-                        match preview {
-                            PreviewShape::Rect { x, y, w, h } => {
-                                view! {
-                                    <div 
-                                        class="preview-rect"
-                                        style=format!("left: {}px; top: {}px; width: {}px; height: {}px;", x, y, w, h)
-                                    />
-                                }.into_view()
-                            }
-                            PreviewShape::Ellipse { cx, cy, rx, ry } => {
-                                let x = cx - rx;
-                                let y = cy - ry;
-                                let w = rx * 2.0;
-                                let h = ry * 2.0;
-                                view! {
-                                    <div 
-                                        class="preview-ellipse"
-                                        style=format!("left: {}px; top: {}px; width: {}px; height: {}px;", x, y, w, h)
-                                    />
-                                }.into_view()
-                            }
-                            PreviewShape::Line { x1, y1, x2, y2 } => {
-                                let dx = x2 - x1;
-                                let dy = y2 - y1;
-                                let length = (dx * dx + dy * dy).sqrt();
-                                let angle = dy.atan2(dx) * 180.0 / std::f32::consts::PI;
-                                view! {
-                                    <div 
-                                        class="preview-line"
-                                        style=format!(
-                                            "left: {}px; top: {}px; width: {}px; height: 2px; transform: rotate({}deg); transform-origin: 0 center;", 
-                                            x1, y1, length, angle
-                                        )
-                                    />
-                                }.into_view()
-                            }
-                        }
-                    } else {
-                        view! { <div class="hidden" style=String::new() /> }.into_view()
+        <div id="app" class="hodei-app min-h-screen">
+            <header class="toolbar-base">
+                <strong>Hodei Momentum</strong>
+                <span style="flex:1"></span>
+                // Controles de renderer
+                <button on:click=move |_| {
+                    let win = window();
+                    match Reflect::get(&win, &JsValue::from_str("force_canvas2d")) {
+                        Ok(v) => if let Ok(func) = v.dyn_into::<Function>() { let _ = func.call0(&JsValue::NULL); },
+                        Err(_) => console::warn_1(&"force_canvas2d no disponible".into()),
                     }
-                }}
-            </div>
-            
-            // Floating toolbar principal
-            <FloatingToolbar>
-                <ToolbarGroup>
-                    <ToolbarButton 
-                        icon=IconType::Select
-                        tooltip="Seleccionar (V)"
-                        selected=Box::new(move || tool.get() == Tool::Select)
-                        on_click=Box::new(move || set_tool.set(Tool::Select))
+                }>"Canvas2D"</button>
+                <button
+                    on:click=move |_| {
+                    let win = window();
+                    match Reflect::get(&win, &JsValue::from_str("force_webgpu")) {
+                        Ok(v) => if let Ok(func) = v.dyn_into::<Function>() { let _ = func.call0(&JsValue::NULL); },
+                        Err(_) => console::warn_1(&"force_webgpu no disponible".into()),
+                    }
+                }
+                    prop:disabled=move || !has_webgpu.get()
+                    title=move || if has_webgpu.get() { "Cambiar a WebGPU".to_string() } else { "WebGPU no soportado en este navegador".to_string() }
+                >"WebGPU"</button>
+                <span style="margin-left:.75rem;color:#6b7280;">
+                    {move || format!("Renderer: {} | DPR: {:.2}", renderer_name.get(), dpr.get())}
+                </span>
+                <div style="margin-left:auto;display:flex;gap:.5rem;">
+                    <button
+                        on:click=move |_| set_tool.set(Tool::Select)
+                        style=move || if tool.get() == Tool::Select { "background:#e5e7eb" } else { "" }
+                    >Seleccionar</button>
+                    <button
+                        on:click=move |_| set_tool.set(Tool::Rect)
+                        style=move || if tool.get() == Tool::Rect { "background:#e5e7eb" } else { "" }
+                    >Rectángulo</button>
+                    <button
+                        on:click=move |_| set_tool.set(Tool::Ellipse)
+                        style=move || if tool.get() == Tool::Ellipse { "background:#e5e7eb" } else { "" }
+                    >Elipse</button>
+                    <button
+                        on:click=move |_| set_tool.set(Tool::Line)
+                        style=move || if tool.get() == Tool::Line { "background:#e5e7eb" } else { "" }
+                    >Línea</button>
+                    <button>Lápiz</button>
+                </div>
+            </header>
+            <main style="display:flex;height:calc(100vh - 48px);">
+                <aside style="width:260px;border-right:1px solid #e5e7eb;padding:.5rem;">Propiedades</aside>
+                <section style="flex:1;position:relative;background:#fafafa;min-height:640px;">
+                    <canvas
+                        id="main-canvas"
+                        class="absolute top-0 left-0 w-full h-full"
+                        on:pointerdown=on_pointer_down
+                        on:pointermove=on_pointer_move
+                        on:pointerup=on_pointer_up
                     />
-                    <ToolbarButton 
-                        icon=IconType::Rectangle
-                        tooltip="Rectángulo (R)"
-                        selected=Box::new(move || tool.get() == Tool::Rect)
-                        on_click=Box::new(move || set_tool.set(Tool::Rect))
-                    />
-                    <ToolbarButton 
-                        icon=IconType::Ellipse
-                        tooltip="Elipse (O)"
-                        selected=Box::new(move || tool.get() == Tool::Ellipse)
-                        on_click=Box::new(move || set_tool.set(Tool::Ellipse))
-                    />
-                    <ToolbarButton 
-                        icon=IconType::Arrow
-                        tooltip="Flecha (A)"
-                        disabled=true
-                    />
-                    <ToolbarButton 
-                        icon=IconType::Line
-                        tooltip="Línea (L)"
-                        selected=Box::new(move || tool.get() == Tool::Line)
-                        on_click=Box::new(move || set_tool.set(Tool::Line))
-                    />
-                    <ToolbarButton 
-                        icon=IconType::Pen
-                        tooltip="Lápiz (P)"
-                        disabled=true
-                    />
-                    <ToolbarButton 
-                        icon=IconType::Text
-                        tooltip="Texto (T)"
-                        disabled=true
-                    />
-                </ToolbarGroup>
-                
-                <ToolbarSeparator />
-                
-                <ToolbarGroup>
-                    <ToolbarButton 
-                        icon=IconType::Eraser
-                        tooltip="Borrador"
-                        disabled=true
-                    />
-                    <ToolbarButton 
-                        icon=IconType::Hand
-                        tooltip="Mano (H)"
-                        disabled=true
-                    />
-                </ToolbarGroup>
-                
-                <ToolbarSeparator />
-                
-                <ToolbarGroup>
-                    <ToolbarButton 
-                        icon=IconType::Undo
-                        tooltip="Deshacer (Ctrl+Z)"
-                        disabled=true
-                    />
-                    <ToolbarButton 
-                        icon=IconType::Redo
-                        tooltip="Rehacer (Ctrl+Y)"
-                        disabled=true
-                    />
-                </ToolbarGroup>
-                
-                <ToolbarSeparator />
-                
-                <ToolbarGroup>
-                    <ThemeToggle 
-                        current_theme=current_theme
-                        on_theme_change=move |new_theme| {
-                            theme_provider.set_theme(new_theme);
-                            set_current_theme.set(new_theme);
-                        }
-                    />
-                </ToolbarGroup>
-            </FloatingToolbar>
+                    // Overlay de previsualización durante el arrastre
+                    <div style=move || {
+                        if let Some(preview) = drag_preview.get() {
+                            match preview {
+                                PreviewShape::Rect { x, y, w, h } => {
+                                    format!(
+                                        "position:absolute; left:{x}px; top:{y}px; width:{w}px; height:{h}px; \
+                                         pointer-events:none; border:1px dashed #3b82f6; background:rgba(59,130,246,0.06); \
+                                         border-radius:0px;"
+                                    )
+                                }
+                                PreviewShape::Ellipse { cx, cy, rx, ry } => {
+                                    let x = cx - rx;
+                                    let y = cy - ry;
+                                    let w = rx * 2.0;
+                                    let h = ry * 2.0;
+                                    format!(
+                                        "position:absolute; left:{x}px; top:{y}px; width:{w}px; height:{h}px; \
+                                         pointer-events:none; border:1px dashed #3b82f6; background:rgba(59,130,246,0.06); \
+                                         border-radius:50%;"
+                                    )
+                                }
+                                PreviewShape::Line { x1, y1, x2, y2 } => {
+                                    let dx = x2 - x1;
+                                    let dy = y2 - y1;
+                                    let length = (dx * dx + dy * dy).sqrt();
+                                    let angle = dy.atan2(dx) * 180.0 / std::f32::consts::PI;
+                                    let cx = (x1 + x2) / 2.0;
+                                    let cy = (y1 + y2) / 2.0;
+                                    format!(
+                                        "position:absolute; left:{cx}px; top:{cy}px; width:{length}px; height:2px; \
+                                         pointer-events:none; background:#3b82f6; \
+                                         transform:translate(-50%, -50%) rotate({angle}deg); transform-origin:center;"
+                                    )
+                                }
+                            }
+                        } else { "display:none".into() }
+                    }></div>
+                </section>
+                <aside style="width:260px;border-left:1px solid #e5e7eb;padding:.5rem;">Capas</aside>
+            </main>
         </div>
     }
 }

@@ -1593,6 +1593,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "momentum-design-system"
+version = "0.1.0"
+dependencies = [
+ "js-sys",
+ "leptos",
+ "serde",
+ "web-sys",
+]
+
+[[package]]
 name = "momentum-ecs"
 version = "0.1.0"
 dependencies = [
@@ -1607,6 +1617,7 @@ dependencies = [
  "js-sys",
  "leptos",
  "momentum-core",
+ "momentum-design-system",
  "web-sys",
 ]
 
