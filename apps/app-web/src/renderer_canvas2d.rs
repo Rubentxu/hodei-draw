@@ -443,4 +443,28 @@ impl RenderPort for Canvas2DRenderer {
     fn upload_image(&mut self, _id: momentum_core::model::ImageId, _data: &[u8]) -> Result<(), RenderError> { Ok(()) }
 
     fn draw_image(&mut self, _id: momentum_core::model::ImageId, _dest: momentum_core::model::Rect, _transform: &Transform, _tint: Option<momentum_core::model::Color>) -> Result<(), RenderError> { Ok(()) }
+
+    fn draw_scale_handle(&mut self, handle: &momentum_core::model::ScaleHandle) -> Result<(), RenderError> {
+        self.ctx.save();
+        
+        // Dibujar el handle como un círculo blanco con borde azul (como Excalidraw)
+        let center_x = handle.x as f64 + (handle.size as f64) / 2.0;
+        let center_y = handle.y as f64 + (handle.size as f64) / 2.0;
+        let radius = (handle.size as f64) / 2.0;
+        
+        self.ctx.begin_path();
+        self.ctx.arc(center_x, center_y, radius, 0.0, 2.0 * std::f64::consts::PI).map_err(|_| RenderError::Other("Arc failed".into()))?;
+        
+        // Fondo blanco
+        self.ctx.set_fill_style(&"#ffffff".into());
+        self.ctx.fill();
+        
+        // Borde azul
+        self.ctx.set_stroke_style(&"#1971c2".into()); // Azul más oscuro como Excalidraw
+        self.ctx.set_line_width(1.5);
+        self.ctx.stroke();
+        
+        self.ctx.restore();
+        Ok(())
+    }
 }

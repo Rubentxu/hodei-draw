@@ -6,7 +6,7 @@ use wgpu::{InstanceDescriptor, PowerPreference, RequestAdapterOptions, SurfaceCo
 use wgpu::util::DeviceExt;
 
 use momentum_core::ports::{RenderError, RenderPort};
-use momentum_core::model::{Path, Rect, Shape, Style, TextMetrics, TextSpan, Transform, ImageId};
+use momentum_core::model::{Path, Rect, Shape, Style, TextMetrics, TextSpan, Transform, ImageId, ScaleHandle};
 
 struct WgpuState {
     instance: wgpu::Instance,
@@ -661,4 +661,10 @@ impl RenderPort for WebGpuRenderer {
     fn upload_image(&mut self, _id: ImageId, _data: &[u8]) -> Result<(), RenderError> { Ok(()) }
 
     fn draw_image(&mut self, _id: ImageId, _dest: Rect, _transform: &Transform, _tint: Option<momentum_core::model::Color>) -> Result<(), RenderError> { Ok(()) }
+
+    fn draw_scale_handle(&mut self, handle: &momentum_core::model::ScaleHandle) -> Result<(), RenderError> {
+        // Por ahora, implementación básica que delega a Canvas2D para los handles
+        // En una implementación completa se usaría GPU shaders
+        Ok(())
+    }
 }

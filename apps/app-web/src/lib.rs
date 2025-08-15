@@ -214,6 +214,125 @@ pub fn ecs_pointer_down(x: f32, y: f32) {
     });
 }
 
+#[wasm_bindgen]
+pub struct PointerDownResult {
+    clicked_handle_type: Option<u8>,
+    entity_selected: bool,
+}
+
+#[wasm_bindgen]
+impl PointerDownResult {
+    #[wasm_bindgen(getter)]
+    pub fn clicked_handle_type(&self) -> Option<u8> {
+        self.clicked_handle_type
+    }
+    
+    #[wasm_bindgen(getter)]
+    pub fn entity_selected(&self) -> bool {
+        self.entity_selected
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen(js_namespace = window)]
+pub fn ecs_pointer_down_with_modifiers(x: f32, y: f32, ctrl_key: bool, shift_key: bool) -> PointerDownResult {
+    console::log_1(&format!("ecs_pointer_down_with_modifiers({}, {}, ctrl={}, shift={})", x, y, ctrl_key, shift_key).into());
+    ECS.with(|ecs| {
+        if let Some(app) = &mut *ecs.borrow_mut() {
+            let result = app.send_pointer_down_with_modifiers(x, y, ctrl_key, shift_key);
+            PointerDownResult {
+                clicked_handle_type: result.clicked_handle_type,
+                entity_selected: result.entity_selected,
+            }
+        } else {
+            PointerDownResult {
+                clicked_handle_type: None,
+                entity_selected: false,
+            }
+        }
+    })
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen(js_namespace = window)]
+pub fn ecs_detect_handle_hover(x: f32, y: f32) -> JsValue {
+    ECS.with(|ecs| {
+        if let Some(app) = &mut *ecs.borrow_mut() {
+            if let Some(handle_type) = app.detect_handle_click(x, y) {
+                JsValue::from_f64(handle_type as f64)
+            } else {
+                JsValue::NULL
+            }
+        } else {
+            JsValue::NULL
+        }
+    })
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen(js_namespace = window)]
+pub fn ecs_detect_shape_hover(x: f32, y: f32) -> JsValue {
+    ECS.with(|ecs| {
+        if let Some(app) = &mut *ecs.borrow_mut() {
+            // Usar la misma lógica que en pointer_down pero solo para detección
+            let dpr = 1.0; // Simplificado para hover, podríamos mejorarlo después
+            let click_x = x * dpr;
+            let click_y = y * dpr;
+            
+            // Buscar si hay alguna entidad en esa posición
+            for (id, transform, _style, shape) in &app.document().entities {
+                // Crear transform escalado por DPR
+                let transform_physical = momentum_core::model::Transform {
+                    x: transform.x * dpr,
+                    y: transform.y * dpr,
+                    scale_x: transform.scale_x * dpr,
+                    scale_y: transform.scale_y * dpr,
+                    rotation: transform.rotation,
+                };
+                
+                // Escalar shape por DPR
+                let mut shape_physical = shape.clone();
+                match shape_physical {
+                    momentum_core::model::Shape::Rect { ref mut w, ref mut h } => {
+                        *w *= dpr;
+                        *h *= dpr;
+                    }
+                    momentum_core::model::Shape::Ellipse { ref mut rx, ref mut ry } => {
+                        *rx *= dpr;
+                        *ry *= dpr;
+                    }
+                    momentum_core::model::Shape::Line { ref mut x2, ref mut y2 } => {
+                        *x2 *= dpr;
+                        *y2 *= dpr;
+                    }
+                    momentum_core::model::Shape::Polygon { ref mut points } => {
+                        for (px, py) in points {
+                            *px *= dpr;
+                            *py *= dpr;
+                        }
+                    }
+                }
+                
+                // Usar sistema hitbox o fallback al shape
+                if let Some(hitbox) = app.document().get_hitbox(*id) {
+                    if hitbox.hit_test(click_x, click_y, &transform_physical, &shape_physical) {
+                        return JsValue::from_bool(true);
+                    }
+                } else {
+                    // Fallback: usar shape con tolerancia por defecto
+                    let default_hitbox = momentum_core::model::Hitbox::from_shape(&shape_physical);
+                    if default_hitbox.hit_test(click_x, click_y, &transform_physical, &shape_physical) {
+                        return JsValue::from_bool(true);
+                    }
+                }
+            }
+            JsValue::from_bool(false)
+        } else {
+            JsValue::from_bool(false)
+        }
+    })
+}
+
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen(js_namespace = window)]
 pub fn ecs_create_rect(x: f32, y: f32, w: f32, h: f32) {
@@ -248,6 +367,83 @@ pub fn ecs_create_line(x1: f32, y1: f32, x2: f32, y2: f32) {
 }
 
 #[cfg(target_arch = "wasm32")]
+#[wasm_bindgen(js_namespace = window)]
+pub fn ecs_move_start(x: f32, y: f32) {
+    console::log_1(&format!("ecs_move_start({}, {})", x, y).into());
+    ECS.with(|ecs| {
+        if let Some(app) = &mut *ecs.borrow_mut() {
+            app.send_move_start(x, y);
+        }
+    });
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen(js_namespace = window)]
+pub fn ecs_move_update(dx: f32, dy: f32) {
+    ECS.with(|ecs| {
+        if let Some(app) = &mut *ecs.borrow_mut() {
+            app.send_move_update(dx, dy);
+        }
+    });
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen(js_namespace = window)]
+pub fn ecs_move_end() {
+    console::log_1(&"ecs_move_end()".into());
+    ECS.with(|ecs| {
+        if let Some(app) = &mut *ecs.borrow_mut() {
+            app.send_move_end();
+        }
+    });
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen(js_namespace = window)]
+pub fn ecs_scale_start(handle_type: u8, x: f32, y: f32) {
+    use momentum_core::model::HandleType;
+    let handle_type = match handle_type {
+        0 => HandleType::TopLeft,
+        1 => HandleType::TopRight,
+        2 => HandleType::BottomLeft,
+        3 => HandleType::BottomRight,
+        4 => HandleType::Top,
+        5 => HandleType::Right,
+        6 => HandleType::Bottom,
+        7 => HandleType::Left,
+        _ => HandleType::TopLeft, // Default fallback
+    };
+    console::log_1(&format!("ecs_scale_start({:?}, {}, {})", handle_type, x, y).into());
+    ECS.with(|ecs| {
+        if let Some(app) = &mut *ecs.borrow_mut() {
+            app.send_scale_start(handle_type, x, y);
+        }
+    });
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen(js_namespace = window)]
+pub fn ecs_scale_update(dx: f32, dy: f32) {
+    console::log_1(&format!("ecs_scale_update({}, {})", dx, dy).into());
+    ECS.with(|ecs| {
+        if let Some(app) = &mut *ecs.borrow_mut() {
+            app.send_scale_update(dx, dy);
+        }
+    });
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen(js_namespace = window)]
+pub fn ecs_scale_end() {
+    console::log_1(&"ecs_scale_end()".into());
+    ECS.with(|ecs| {
+        if let Some(app) = &mut *ecs.borrow_mut() {
+            app.send_scale_end();
+        }
+    });
+}
+
+#[cfg(target_arch = "wasm32")]
 #[derive(Serialize)]
 struct RectDto { x: f32, y: f32, w: f32, h: f32 }
 
@@ -274,7 +470,7 @@ pub fn get_document_json() -> String {
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen(start)]
-pub async fn start() -> Result<(), JsValue> {
+pub fn start() -> Result<(), JsValue> {
     // Mostrar panics de Rust en la consola del navegador
     console_error_panic_hook::set_once();
     console::log_1(&"Hodei Momentum — WASM start".into());
@@ -555,6 +751,225 @@ fn register_window_functions() -> Result<(), JsValue> {
     Reflect::set(&global, &JsValue::from_str("get_document_json"), f_get.as_ref())?;
     if let Some(win) = &win_opt { let _ = Reflect::set(win, &JsValue::from_str("get_document_json"), f_get.as_ref()); }
     f_get.forget();
+
+    // ecs_pointer_down_with_modifiers(x, y, ctrl_key, shift_key)
+    let f_down_mod = Closure::wrap(Box::new(move |x: f32, y: f32, ctrl_key: bool, shift_key: bool| {
+        console::log_1(&format!("[global] ecs_pointer_down_with_modifiers({}, {}, {}, {})", x, y, ctrl_key, shift_key).into());
+        ECS.with(|ecs| {
+            match ecs.try_borrow_mut() {
+                Ok(mut ecs_mut) => {
+                    if let Some(app) = &mut *ecs_mut {
+                        app.send_pointer_down_with_modifiers(x, y, ctrl_key, shift_key);
+                    }
+                }
+                Err(_) => {
+                    console::warn_1(&"ECS is busy (pointer_down_with_modifiers); retrying soon".into());
+                    if let Some(win) = window() {
+                        let cb = Closure::once_into_js(move || {
+                            ECS.with(|ecs| {
+                                if let Ok(mut ecs_mut) = ecs.try_borrow_mut() {
+                                    if let Some(app) = &mut *ecs_mut {
+                                        app.send_pointer_down_with_modifiers(x, y, ctrl_key, shift_key);
+                                    }
+                                }
+                            });
+                        });
+                        let _ = win.set_timeout_with_callback_and_timeout_and_arguments_0(
+                            cb.as_ref().unchecked_ref(), 0,
+                        );
+                    }
+                }
+            }
+        });
+    }) as Box<dyn FnMut(f32, f32, bool, bool)>);
+    Reflect::set(&global, &JsValue::from_str("ecs_pointer_down_with_modifiers"), f_down_mod.as_ref())?;
+    if let Some(win) = &win_opt { let _ = Reflect::set(win, &JsValue::from_str("ecs_pointer_down_with_modifiers"), f_down_mod.as_ref()); }
+    f_down_mod.forget();
+
+    // ecs_move_start(x, y)
+    let f_move_start = Closure::wrap(Box::new(move |x: f32, y: f32| {
+        console::log_1(&format!("[global] ecs_move_start({}, {})", x, y).into());
+        ECS.with(|ecs| {
+            if let Ok(mut ecs_mut) = ecs.try_borrow_mut() {
+                if let Some(app) = &mut *ecs_mut {
+                    app.send_move_start(x, y);
+                }
+            }
+        });
+    }) as Box<dyn FnMut(f32, f32)>);
+    Reflect::set(&global, &JsValue::from_str("ecs_move_start"), f_move_start.as_ref())?;
+    if let Some(win) = &win_opt { let _ = Reflect::set(win, &JsValue::from_str("ecs_move_start"), f_move_start.as_ref()); }
+    f_move_start.forget();
+
+    // ecs_move_update(dx, dy)
+    let f_move_update = Closure::wrap(Box::new(move |dx: f32, dy: f32| {
+        ECS.with(|ecs| {
+            if let Ok(mut ecs_mut) = ecs.try_borrow_mut() {
+                if let Some(app) = &mut *ecs_mut {
+                    app.send_move_update(dx, dy);
+                }
+            }
+        });
+    }) as Box<dyn FnMut(f32, f32)>);
+    Reflect::set(&global, &JsValue::from_str("ecs_move_update"), f_move_update.as_ref())?;
+    if let Some(win) = &win_opt { let _ = Reflect::set(win, &JsValue::from_str("ecs_move_update"), f_move_update.as_ref()); }
+    f_move_update.forget();
+
+    // ecs_move_end()
+    let f_move_end = Closure::wrap(Box::new(move || {
+        console::log_1(&"[global] ecs_move_end()".into());
+        ECS.with(|ecs| {
+            if let Ok(mut ecs_mut) = ecs.try_borrow_mut() {
+                if let Some(app) = &mut *ecs_mut {
+                    app.send_move_end();
+                }
+            }
+        });
+    }) as Box<dyn FnMut()>);
+    Reflect::set(&global, &JsValue::from_str("ecs_move_end"), f_move_end.as_ref())?;
+    if let Some(win) = &win_opt { let _ = Reflect::set(win, &JsValue::from_str("ecs_move_end"), f_move_end.as_ref()); }
+    f_move_end.forget();
+
+    // ecs_scale_start(handle_type, x, y)
+    let f_scale_start = Closure::wrap(Box::new(move |handle_type: u8, x: f32, y: f32| {
+        use momentum_core::model::HandleType;
+        let handle = match handle_type {
+            0 => HandleType::TopLeft,
+            1 => HandleType::TopRight,
+            2 => HandleType::BottomLeft,
+            3 => HandleType::BottomRight,
+            4 => HandleType::Top,
+            5 => HandleType::Right,
+            6 => HandleType::Bottom,
+            7 => HandleType::Left,
+            _ => HandleType::TopLeft,
+        };
+        console::log_1(&format!("[global] ecs_scale_start({:?}, {}, {})", handle, x, y).into());
+        ECS.with(|ecs| {
+            if let Ok(mut ecs_mut) = ecs.try_borrow_mut() {
+                if let Some(app) = &mut *ecs_mut {
+                    app.send_scale_start(handle, x, y);
+                }
+            }
+        });
+    }) as Box<dyn FnMut(u8, f32, f32)>);
+    Reflect::set(&global, &JsValue::from_str("ecs_scale_start"), f_scale_start.as_ref())?;
+    if let Some(win) = &win_opt { let _ = Reflect::set(win, &JsValue::from_str("ecs_scale_start"), f_scale_start.as_ref()); }
+    f_scale_start.forget();
+
+    // ecs_scale_update(dx, dy)
+    let f_scale_update = Closure::wrap(Box::new(move |dx: f32, dy: f32| {
+        console::log_1(&format!("[global] ecs_scale_update({}, {})", dx, dy).into());
+        ECS.with(|ecs| {
+            if let Ok(mut ecs_mut) = ecs.try_borrow_mut() {
+                if let Some(app) = &mut *ecs_mut {
+                    app.send_scale_update(dx, dy);
+                }
+            }
+        });
+    }) as Box<dyn FnMut(f32, f32)>);
+    Reflect::set(&global, &JsValue::from_str("ecs_scale_update"), f_scale_update.as_ref())?;
+    if let Some(win) = &win_opt { let _ = Reflect::set(win, &JsValue::from_str("ecs_scale_update"), f_scale_update.as_ref()); }
+    f_scale_update.forget();
+
+    // ecs_scale_end()
+    let f_scale_end = Closure::wrap(Box::new(move || {
+        console::log_1(&"[global] ecs_scale_end()".into());
+        ECS.with(|ecs| {
+            if let Ok(mut ecs_mut) = ecs.try_borrow_mut() {
+                if let Some(app) = &mut *ecs_mut {
+                    app.send_scale_end();
+                }
+            }
+        });
+    }) as Box<dyn FnMut()>);
+    Reflect::set(&global, &JsValue::from_str("ecs_scale_end"), f_scale_end.as_ref())?;
+    if let Some(win) = &win_opt { let _ = Reflect::set(win, &JsValue::from_str("ecs_scale_end"), f_scale_end.as_ref()); }
+    f_scale_end.forget();
+
+    // ecs_detect_handle_hover
+    let f_detect_handle_hover = Closure::wrap(Box::new(move |x: f32, y: f32| -> JsValue {
+        ECS.with(|ecs| {
+            if let Some(app) = &mut *ecs.borrow_mut() {
+                if let Some(handle_type) = app.detect_handle_click(x, y) {
+                    JsValue::from_f64(handle_type as f64)
+                } else {
+                    JsValue::NULL
+                }
+            } else {
+                JsValue::NULL
+            }
+        })
+    }) as Box<dyn FnMut(f32, f32) -> JsValue>);
+    Reflect::set(&global, &JsValue::from_str("ecs_detect_handle_hover"), f_detect_handle_hover.as_ref())?;
+    if let Some(win) = &win_opt { let _ = Reflect::set(win, &JsValue::from_str("ecs_detect_handle_hover"), f_detect_handle_hover.as_ref()); }
+    f_detect_handle_hover.forget();
+
+    // ecs_detect_shape_hover
+    let f_detect_shape_hover = Closure::wrap(Box::new(move |x: f32, y: f32| -> JsValue {
+        ECS.with(|ecs| {
+            if let Some(app) = &mut *ecs.borrow_mut() {
+                // Usar la misma lógica que en pointer_down pero solo para detección
+                let dpr = 1.0; // Simplificado para hover
+                let click_x = x * dpr;
+                let click_y = y * dpr;
+                
+                // Buscar si hay alguna entidad en esa posición
+                for (id, transform, _style, shape) in &app.document().entities {
+                    // Crear transform escalado por DPR
+                    let transform_physical = momentum_core::model::Transform {
+                        x: transform.x * dpr,
+                        y: transform.y * dpr,
+                        scale_x: transform.scale_x * dpr,
+                        scale_y: transform.scale_y * dpr,
+                        rotation: transform.rotation,
+                    };
+                    
+                    // Escalar shape por DPR
+                    let mut shape_physical = shape.clone();
+                    match shape_physical {
+                        momentum_core::model::Shape::Rect { ref mut w, ref mut h } => {
+                            *w *= dpr;
+                            *h *= dpr;
+                        }
+                        momentum_core::model::Shape::Ellipse { ref mut rx, ref mut ry } => {
+                            *rx *= dpr;
+                            *ry *= dpr;
+                        }
+                        momentum_core::model::Shape::Line { ref mut x2, ref mut y2 } => {
+                            *x2 *= dpr;
+                            *y2 *= dpr;
+                        }
+                        momentum_core::model::Shape::Polygon { ref mut points } => {
+                            for (px, py) in points {
+                                *px *= dpr;
+                                *py *= dpr;
+                            }
+                        }
+                    }
+                    
+                    // Usar sistema hitbox o fallback al shape
+                    if let Some(hitbox) = app.document().get_hitbox(*id) {
+                        if hitbox.hit_test(click_x, click_y, &transform_physical, &shape_physical) {
+                            return JsValue::from_bool(true);
+                        }
+                    } else {
+                        // Fallback: usar shape con tolerancia por defecto
+                        let default_hitbox = momentum_core::model::Hitbox::from_shape(&shape_physical);
+                        if default_hitbox.hit_test(click_x, click_y, &transform_physical, &shape_physical) {
+                            return JsValue::from_bool(true);
+                        }
+                    }
+                }
+                JsValue::from_bool(false)
+            } else {
+                JsValue::from_bool(false)
+            }
+        })
+    }) as Box<dyn FnMut(f32, f32) -> JsValue>);
+    Reflect::set(&global, &JsValue::from_str("ecs_detect_shape_hover"), f_detect_shape_hover.as_ref())?;
+    if let Some(win) = &win_opt { let _ = Reflect::set(win, &JsValue::from_str("ecs_detect_shape_hover"), f_detect_shape_hover.as_ref()); }
+    f_detect_shape_hover.forget();
 
     console::log_1(&"Funciones globales registradas en globalThis/window".into());
     Ok(())

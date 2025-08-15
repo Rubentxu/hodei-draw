@@ -256,7 +256,8 @@
   left: 0;
   width: 100%;
   height: 100%;
-  cursor: crosshair;
+  /* Cursor will be set dynamically by Leptos based on tool and hover state */
+  cursor: auto;
 }
 
 /* Island panel (floating panels) */
