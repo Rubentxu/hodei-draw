@@ -3,3 +3,9 @@ release = true
 
 [tools]
 # Usa wasm-bindgen por defecto
+
+# Hook para compilar Tailwind CSS automáticamente
+[[hooks]]
+stage = "pre_build"
+command = "npx"
+command_arguments = ["tailwindcss", "-i", "input.css", "-o", "styles.css"]

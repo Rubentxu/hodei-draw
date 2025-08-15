@@ -4,12 +4,12 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Hodei Momentum</title>
-    <!-- Tailwind CSS v4 (CDN) -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Trunk builds and links CSS automatically -->
+    <link data-trunk rel="css" href="styles.css" />
     <!-- Trunk construirá y enlazará el WASM automáticamente -->
     <link data-trunk rel="rust" data-target-name="app_web" data-cargo-features="webgpu" />
   </head>
-  <body class="bg-slate-100 text-slate-800">
+  <body>
     <!-- La UI se monta íntegramente desde Leptos (mount_app).
          Evitamos duplicar el canvas y los handlers para no interferir con la lógica de creación por arrastre. -->
   </body>
