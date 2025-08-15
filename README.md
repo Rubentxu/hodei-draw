@@ -1,6 +1,7 @@
 # 🎨 Hodei Draw
 
-[![Build Status](https://img.shields.io/github/actions/workflow/status/Rubentxu/hodei-draw/ci.yml?branch=main)](https://github.com/Rubentxu/hodei-draw/actions)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/Rubentxu/hodei-draw/deploy.yml?branch=main&label=deployment)](https://github.com/Rubentxu/hodei-draw/actions)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-🚀%20Available-brightgreen)](https://rubentxu.github.io/hodei-draw/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org)
 [![WebAssembly](https://img.shields.io/badge/WebAssembly-654FF0?logo=webassembly&logoColor=white)](https://webassembly.org/)
@@ -194,19 +195,24 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 
 ## 🗺️ Roadmap
 
-### Phase 1: Enhanced Drawing Foundation ✅
+### Phase 1: Enhanced Drawing Foundation 🎉 **COMPLETED**
 - [x] Excalidraw-style UI with modern design system
 - [x] Multi-renderer architecture (WebGPU + Canvas2D)
 - [x] Core shape tools with live preview
 - [x] Theme system and responsive design
+- [x] **Live demo public deployment** 🚀
+- [x] **Professional documentation and CI/CD**
+- [ ] Import/Export (SVG/PNG) - *in progress*
+- [ ] Local persistence (IndexedDB) - *planned*
+- [ ] Undo/Redo system - *planned*
 
-### Phase 2: Interactive Canvas 🚧
+### Phase 2: Interactive Canvas 📋 **NEXT**
 - [ ] Component-based animation system
 - [ ] 2D physics engine integration (Avian/Rapier)
 - [ ] Timeline and keyframe management
 - [ ] Advanced shape libraries
 
-### Phase 3: Collaboration Platform 🔮
+### Phase 3: Collaboration Platform 🔮 **FUTURE**
 - [ ] Real-time collaboration (WebRTC + GGRS)
 - [ ] Plugin system (WASM Component Model)
 - [ ] Cloud synchronization

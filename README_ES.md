@@ -1,6 +1,7 @@
 # 🎨 Hodei Draw
 
-[![Estado de Build](https://img.shields.io/github/actions/workflow/status/Rubentxu/hodei-draw/ci.yml?branch=main)](https://github.com/Rubentxu/hodei-draw/actions)
+[![Estado de Build](https://img.shields.io/github/actions/workflow/status/Rubentxu/hodei-draw/deploy.yml?branch=main&label=deployment)](https://github.com/Rubentxu/hodei-draw/actions)
+[![Demo en Vivo](https://img.shields.io/badge/Demo%20en%20Vivo-🚀%20Disponible-brightgreen)](https://rubentxu.github.io/hodei-draw/)
 [![Licencia: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org)
 [![WebAssembly](https://img.shields.io/badge/WebAssembly-654FF0?logo=webassembly&logoColor=white)](https://webassembly.org/)
